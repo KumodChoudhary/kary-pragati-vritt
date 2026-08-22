@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>डैशबोर्ड — {{ title }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="admin-page">
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">📊 {{ title }} <span class="badge-admin">एडमिन</span></div>
+      <div class="topbar-actions">
+        <span class="live-dot" id="liveDot"></span>
+        <span id="lastUpdate" class="last-update">—</span>
+        <a href="{{ url_for('form_page') }}" class="btn-ghost" target="_blank">👁 फॉर्म देखें</a>
+        <a href="{{ export_url }}" class="btn-green">⬇ Excel डाउनलोड</a>
+        <a href="{{ preview_url }}" class="btn-ghost">📂 प्रीव्यू फ़ाइल बनाएँ</a>
+        <form method="POST" action="{{ url_for('admin_clear') }}" class="inline-form"
+              onsubmit="return confirm('क्या आप सारा डेटा साफ़ करना चाहते हैं? यह क्रिया वापस नहीं हो सकती।');">
+          <button class="btn-ghost btn-danger">🗑 साफ़ करें</button>
+        </form>
+        <form method="POST" action="{{ url_for('admin_logout') }}" class="inline-form">
+          <button class="btn-ghost">लॉगआउट</button>
+        </form>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- शेयर लिंक -->
+    <div class="card share-card">
+      <span class="share-label">🔗 शेयर लिंक (किसी को भी भेजें — ईमेल की ज़रूरत नहीं):</span>
+      <div class="share-row">
+        <input type="text" id="shareUrl" readonly value="{{ url_for('form_page', _external=True) }}">
+        <button class="btn-primary" onclick="copyLink()">कॉपी करें</button>
+      </div>
+    </div>
+
+    <!-- आँकड़े कार्ड -->
+    <div class="stat-grid">
+      <div class="stat-card sc1"><div class="stat-num" id="stTotal">0</div><div class="stat-label">कुल उत्तर (प्रांत)</div></div>
+      <div class="stat-card sc2"><div class="stat-num" id="stToday">0</div><div class="stat-label">आज के उत्तर</div></div>
+      <div class="stat-card sc3"><div class="stat-num" id="stWeek">0</div><div class="stat-label">पिछले 7 दिन</div></div>
+      <div class="stat-card sc4"><div class="stat-num" id="stLast" style="font-size:22px">—</div><div class="stat-label">अंतिम उत्तर (समय)</div></div>
+    </div>
+
+    <!-- इन्फोग्राफिक्स -->
+    <div class="chart-grid" id="chartGrid"></div>
+
+    <!-- टेबल -->
+    <div class="card">
+      <div class="table-head">
+        <h2>📋 सभी उत्तर (तालिका)</h2>
+        <input type="text" id="searchBox" placeholder="🔍 खोजें (प्रांत, अध्यक्ष, उत्तर...)" oninput="renderTable()">
+      </div>
+      <div class="table-wrap">
+        <table id="respTable">
+          <thead id="tableHead"></thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+        <div id="emptyState" class="empty-state" style="display:none">अभी तक कोई उत्तर नहीं आया। फॉर्म लिंक साझा करें! 🚀</div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="admin-footer">⚡ हर 10 सेकंड में स्वतः अपडेट · Excel फ़ाइल हर बार ताज़ा डेटा के साथ बनती है</footer>
+
+<script>
+/* ================= डेटा + ऑटो-रिफ्रेश ================= */
+let DATA = null;
+const COLORS = ["#1D4ED8", "#059669", "#D97706", "#7C3AED", "#DC2626", "#0EA5E9", "#DB2777", "#14B8A6"];
+// कुकी-मुक्त कुंजी — URL से पढ़ो और हर अनुरोध में भेजो
+const ADMIN_KEY = new URLSearchParams(location.search).get('key') || '';
+const API_URL = "{{ url_for('admin_api_data') }}" + (ADMIN_KEY ? "?key=" + encodeURIComponent(ADMIN_KEY) : "");
+
+function esc(s){
+  return String(s ?? "").replace(/[&<>"']/g, c => (
+    {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]
+  ));
+}
+function num(v){ const n = parseFloat(v); return isNaN(n) ? 0 : n; }
+
+async function refresh(){
+  try{
+    const r = await fetch(API_URL, {cache:"no-store"});
+    if (r.status === 401){ location.href = "{{ url_for('admin') }}"; return; }
+    DATA = await r.json();
+    renderAll();
+    document.getElementById('liveDot').classList.add('on');
+    document.getElementById('lastUpdate').textContent = "अपडेट: " + new Date().toLocaleTimeString('hi-IN');
+  }catch(e){
+    document.getElementById('liveDot').classList.remove('on');
+  }
+}
+function renderAll(){ renderStats(); renderCharts(); renderTable(); }
+
+function renderStats(){
+  document.getElementById('stTotal').textContent = DATA.total;
+  document.getElementById('stToday').textContent = DATA.today;
+  document.getElementById('stWeek').textContent = DATA.week;
+  const lt = DATA.last_time;
+  document.getElementById('stLast').textContent = lt ? lt.slice(8,10) + "/" + lt.slice(5,7) + " " + lt.slice(11,16) : "—";
+}
+
+/* ================= इन्फोग्राफिक्स (शुद्ध SVG/CSS — कोई बाहरी लाइब्रेरी नहीं) ================= */
+function daysChartSVG(items){
+  const W = 640, H = 170, pad = 26;
+  const maxV = Math.max(...items.map(i=>i.value), 1);
+  const bw = (W - pad*2) / items.length;
+  let bars = "", labels = "";
+  items.forEach((it, i) => {
+    const h = Math.max(3, Math.round(it.value / maxV * (H - pad*2 - 14)));
+    const x = pad + i * bw + bw*0.18;
+    const y = H - pad - h;
+    bars += `<rect x="${x}" y="${y}" width="${bw*0.64}" height="${h}" rx="4" fill="${it.value ? "#1D4ED8" : "#E5E7EB"}"><title>${esc(it.label)}: ${it.value}</title></rect>`;
+    if (i % 2 === 0) labels += `<text x="${pad + i*bw + bw/2}" y="${H-6}" text-anchor="middle" font-size="9.5" fill="#6B7280">${esc(it.label)}</text>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" class="chart-svg wide">${bars}${labels}</svg>`;
+}
+
+function sumBars(fields, sums){
+  // "वर्तमान बनाम लक्ष्य" जैसे कुल योग बार
+  const maxV = Math.max(...fields.map(f => sums[f.id] || 0), 1);
+  let html = `<div class="hbars">`;
+  fields.forEach((f, i) => {
+    const v = sums[f.id] || 0;
+    const w = Math.max(2, Math.round(v / maxV * 100));
+    html += `<div class="hbar-row">
+      <div class="hbar-label">${esc(f.label)}</div>
+      <div class="hbar-track"><div class="hbar-fill" style="width:${w}%;background:${COLORS[i % COLORS.length]}"></div></div>
+      <div class="hbar-val">${v}</div>
+    </div>`;
+  });
+  return html + `</div>`;
+}
+
+function perResponseBars(field, rows, provField){
+  // प्रांत-वार तुलना (एक संख्यात्मक फ़ील्ड के लिए)
+  const items = rows.map(r => ({
+    label: (r.data[provField] || "").trim() || ("उत्तर #" + r.id),
+    value: num(r.data[field.id])
+  })).filter(i => i.value > 0).sort((a,b) => b.value - a.value);
+  if (!items.length) return `<div class="chart-empty">अभी कोई उत्तर नहीं</div>`;
+  const top = items.slice(0, 12);
+  const maxV = Math.max(...top.map(i=>i.value), 1);
+  let html = `<div class="hbars">`;
+  top.forEach((it, i) => {
+    const w = Math.max(2, Math.round(it.value / maxV * 100));
+    html += `<div class="hbar-row">
+      <div class="hbar-label">${esc(it.label)}</div>
+      <div class="hbar-track"><div class="hbar-fill" style="width:${w}%;background:${COLORS[i % COLORS.length]}"></div></div>
+      <div class="hbar-val">${it.value}</div>
+    </div>`;
+  });
+  if (items.length > top.length) html += `<div class="chart-more">… और ${items.length - top.length} प्रांत</div>`;
+  return html + `</div>`;
+}
+
+function textList(field, rows, provField){
+  let html = `<ul class="word-list">`;
+  let count = 0;
+  for (const r of rows) {
+    const v = (r.data[field.id] || "").trim();
+    if (!v) continue;
+    if (count++ >= 10) { html += `<li class="chart-more">… और ${rows.filter(x=>(x.data[field.id]||"").trim()).length - 10} उत्तर</li>`; break; }
+    const prov = (r.data[provField] || "").trim() || ("उत्तर #" + r.id);
+    html += `<li><b>${esc(prov)}:</b> ${esc(v)}</li>`;
+  }
+  if (!count) return `<div class="chart-empty">अभी कोई उत्तर नहीं</div>`;
+  return html + `</ul>`;
+}
+
+function makeCard(title, inner){
+  return `<div class="card chart-card"><h3>${esc(title)}</h3><div class="chart-body">${inner}</div></div>`;
+}
+
+function renderCharts(){
+  const grid = document.getElementById('chartGrid');
+  let html = makeCard("📅 पिछले 14 दिनों में उत्तर", daysChartSVG(DATA.series));
+
+  // प्रश्नों को grp (क.1, ख.2...) के अनुसार समूहित करें
+  const grpOrder = [], grpMap = {};
+  DATA.fields.forEach(f => {
+    if (!f.grp) return;
+    if (!grpMap[f.grp]) { grpMap[f.grp] = { label: f.item_label, fields: [] }; grpOrder.push(f.grp); }
+    grpMap[f.grp].fields.push(f);
+  });
+
+  const provField = DATA.fields.find(f => f.id === 'prov')?.id || 'prov';
+
+  grpOrder.forEach(g => {
+    const grp = grpMap[g];
+    const numF = grp.fields.filter(f => f.type === 'number');
+    const txtF = grp.fields.filter(f => f.type !== 'number');
+    let inner = "";
+    if (numF.length >= 2) inner += sumBars(numF, DATA.field_sums) + (txtF.length ? `<div class="chart-divider"></div>` : "");
+    else if (numF.length === 1) inner += perResponseBars(numF[0], DATA.rows, provField) + (txtF.length ? `<div class="chart-divider"></div>` : "");
+    txtF.forEach(f => { inner += textList(f, DATA.rows, provField); });
+    if (!inner.trim()) return;
+    const shortLabel = grp.label.length > 62 ? grp.label.slice(0, 62) + "…" : grp.label;
+    html += makeCard(`${g} · ${shortLabel}`, inner);
+  });
+
+  grid.innerHTML = html;
+}
+
+/* ================= तालिका ================= */
+function renderTable(){
+  const head = document.getElementById('tableHead');
+  const body = document.getElementById('tableBody');
+  const empty = document.getElementById('emptyState');
+  const q = (document.getElementById('searchBox').value || "").toLowerCase();
+
+  let h = `<tr><th>#</th><th>समय</th>`;
+  DATA.fields.forEach(f => h += `<th>${esc(f.header)}</th>`);
+  h += `</tr>`;
+  head.innerHTML = h;
+
+  const rows = DATA.rows.filter(r => {
+    if (!q) return true;
+    return JSON.stringify(r.data).toLowerCase().includes(q) ||
+           r.id.toString().includes(q) || r.created_at.toLowerCase().includes(q);
+  });
+
+  if (!DATA.rows.length){ empty.style.display = "block"; body.innerHTML = ""; return; }
+  empty.style.display = "none";
+
+  let t = "";
+  rows.forEach((r, i) => {
+    t += `<tr><td class="dim">${DATA.rows.length - i}</td><td class="mono">${esc(r.created_at.replace("T", " "))}</td>`;
+    DATA.fields.forEach(f => {
+      const v = (r.data[f.id] || "").trim();
+      const na = f.show_if && (r.data[f.show_if] || "") !== f.show_if_value;
+      t += na ? `<td class="dim">लागू नहीं</td>`
+              : `<td class="${f.type === 'number' ? 'num-cell' : ''}">${v ? esc(v) : '<span class="dim">—</span>'}</td>`;
+    });
+    t += `</tr>`;
+  });
+  body.innerHTML = t || `<tr><td colspan="${DATA.fields.length+2}" class="dim">कोई मेल नहीं मिला</td></tr>`;
+}
+
+function copyLink(){
+  const el = document.getElementById('shareUrl');
+  el.select(); el.setSelectionRange(0, 99999);
+  navigator.clipboard?.writeText(el.value).then(() => {
+    el.style.borderColor = "#10B981";
+    setTimeout(()=> el.style.borderColor = "", 1200);
+  });
+}
+
+setInterval(refresh, 10000);
+refresh();
+</script>
+</body>
+</html>

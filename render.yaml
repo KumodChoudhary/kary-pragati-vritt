@@ -1,0 +1,15 @@
+# Render ब्लूप्रिंट — एक-क्लिक डिप्लॉय (README के "लाइव होस्टिंग" खंड देखें)
+services:
+  - type: web
+    name: kary-pragati-vritt
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn -w 2 -b 0.0.0.0:$PORT app:app
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ADMIN_PASSWORD
+        value: admin123      # ← डिप्लॉय के तुरंत बाद बदलें!
+      - key: DATABASE_URL
+        sync: false          # ← Neon/Supabase का PostgreSQL URL यहाँ पेस्ट करें (डेटा स्थायी रखने के लिए)

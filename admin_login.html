@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>एडमिन लॉगिन — {{ site }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="form-page">
+  <div class="card thankyou-card">
+    <div class="tick">🔐</div>
+    <h1>एडमिन लॉगिन</h1>
+    {% with msgs = get_flashed_messages(with_categories=true) %}
+      {% for cat, m in msgs %}
+        <div class="alert alert-{{ cat }}">{{ m }}</div>
+      {% endfor %}
+    {% endwith %}
+    <form method="POST" action="{{ url_for('admin_login') }}" class="login-form">
+      <input type="password" name="password" placeholder="पासवर्ड डालें" required autofocus>
+      <button type="submit" class="btn-primary">लॉगिन करें</button>
+    </form>
+    <p class="privacy-note">डिफ़ॉल्ट पासवर्ड: <b>admin123</b> (याद रखें — README में बदलने के निर्देश हैं)</p>
+  </div>
+</body>
+</html>
