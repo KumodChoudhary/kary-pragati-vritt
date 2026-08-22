@@ -11,9 +11,11 @@
     <div class="org-block">
       {% if logo %}<img src="{{ url_for('static', filename='logo.png') }}" class="org-logo" alt="लोगो">{% endif %}
       {% if org_name %}
-        <div class="org-name">{{ org_name }}</div>
-        {% if org_tagline %}<div class="org-sub">{{ org_tagline }}</div>{% endif %}
-        {% if org_sub %}<div class="org-sub">{{ org_sub }}</div>{% endif %}
+        <div class="org-text">
+          <div class="org-name">{{ org_name }}</div>
+          {% if org_tagline %}<div class="org-sub">{{ org_tagline }}</div>{% endif %}
+          {% if org_sub %}<div class="org-sub">{{ org_sub }}</div>{% endif %}
+        </div>
       {% else %}
         <div class="hero-badge">📋 {{ site }}</div>
       {% endif %}
