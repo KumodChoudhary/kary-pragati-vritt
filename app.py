@@ -6,8 +6,7 @@
 - /submit          → उत्तर सहेजना (POST)
 - /dhanyavaad      → धन्यवाद पृष्ठ
 - /admin           → एडमिन डैशबोर्ड (टेबल + इन्फोग्राफिक्स + Excel)
-- /admin/export    → Excel (.xlsx) डाउनलोड — हमेशा ताज़ा (असली होस्टिंग पर)
-- /admin/make_excel→ प्रीव्यू के लिए फ़ाइल बनाना (चैट workspace में सहेजती है)
+- /admin/export    → Excel (.xlsx) डाउनलोड — हमेशा ताज़ा
 - /admin/clear     → सारा डेटा साफ़ करना
 - /admin/api/data  → डैशबोर्ड द्वारा 10 सेकंड में ऑटो-रिफ्रेश वाला JSON
 """
@@ -31,11 +30,12 @@ from openpyxl.utils import get_column_letter
 
 from survey_config import (
     SECTIONS, FORM_TITLE, FORM_DESC, INSTRUCTION, THANK_YOU_MSG,
-    ADMIN_PASSWORD, SITE_TITLE
+    ADMIN_PASSWORD, SITE_TITLE, ORG_NAME, ORG_TAGLINE, ORG_SUB, EXPECTED_PROVINCES
 )
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "data", "responses.db")
+LOGO_EXISTS = os.path.exists(os.path.join(BASE_DIR, "static", "logo.png"))
 
 app = Flask(__name__)
 
@@ -73,6 +73,7 @@ def flat_fields():
                 out.append({
                     "id": f["id"],
                     "label": f.get("label", ""),
+                    "short": f.get("short", ""),
                     "type": f.get("type", "text"),
                     "grp": item.get("grp", ""),
                     "item_label": item.get("label", ""),
@@ -203,7 +204,8 @@ def form_page():
     return render_template(
         "form.html",
         title=FORM_TITLE, desc=FORM_DESC, instruction=INSTRUCTION,
-        sections=SECTIONS, site=SITE_TITLE,
+        sections=SECTIONS, site=SITE_TITLE, org_name=ORG_NAME,
+        org_tagline=ORG_TAGLINE, org_sub=ORG_SUB, logo=LOGO_EXISTS,
     )
 
 
@@ -237,7 +239,8 @@ def submit():
 
 @app.route("/dhanyavaad")
 def thank_you():
-    return render_template("thank_you.html", msg=THANK_YOU_MSG, site=SITE_TITLE)
+    return render_template("thank_you.html", msg=THANK_YOU_MSG, site=SITE_TITLE,
+                           org_name=ORG_NAME, org_sub=ORG_SUB, logo=LOGO_EXISTS)
 
 
 # ---------------------------------------------------------------- एडमिन प्रमाणीकरण
@@ -309,13 +312,14 @@ def admin():
     if key and check_admin_key(key):
         session["admin"] = True  # कुकी चले तो आगे के लिए सत्र भी रखें
     elif not session.get("admin"):
-        return render_template("admin_login.html", site=SITE_TITLE)
+        return render_template("admin_login.html", site=SITE_TITLE,
+                               org_name=ORG_NAME, logo=LOGO_EXISTS)
     # Excel बटन में वही कुंजी जुड़े (कुकी ब्लॉक होने पर भी काम करे)
     export_url = url_for("admin_export", key=key) if key else url_for("admin_export")
-    preview_url = url_for("admin_make_excel", key=key) if key else url_for("admin_make_excel")
     return render_template(
         "admin.html",
-        title=FORM_TITLE, site=SITE_TITLE, export_url=export_url, preview_url=preview_url,
+        title=FORM_TITLE, site=SITE_TITLE, export_url=export_url, org_name=ORG_NAME,
+        org_tagline=ORG_TAGLINE, org_sub=ORG_SUB, logo=LOGO_EXISTS,
     )
 
 
@@ -362,6 +366,34 @@ def build_summary():
         else:
             field_sums[f["id"]] = None
 
+    # ---------- उत्तर-सूची ट्रैकर: किस प्रांत ने भरा / नहीं भरा ----------
+    def _norm(s):
+        return (s or "").replace(" ", "").replace("\u3000", "").lower()
+
+    filled = {}  # सामान्यीकृत नाम → जानकारी (rows नए पहले हैं, इसलिए पहला = नवीनतम)
+    for r in rows:
+        d = parse_data(r)
+        prov = (d.get("prov") or "").strip()
+        if not prov:
+            continue
+        k = _norm(prov)
+        if k in filled:
+            continue
+        filled[k] = {"name": prov, "at": r["created_at"], "head": d.get("head", "")}
+
+    tracker = {"expected": EXPECTED_PROVINCES, "status": [], "extra": []}
+    for name in EXPECTED_PROVINCES:
+        k = _norm(name)
+        st = filled.pop(k, None)
+        tracker["status"].append({
+            "name": name, "filled": bool(st),
+            "at": st["at"] if st else None, "head": st["head"] if st else None,
+        })
+    tracker["extra"] = [filled[k] for k in filled]  # सूची से बाहर के प्रांत (जमा हुए)
+    tracker["filled"] = sum(1 for s in tracker["status"] if s["filled"])
+    tracker["total"] = len(tracker["status"])
+    tracker["pending"] = [s["name"] for s in tracker["status"] if not s["filled"]]
+
     return {
         "total": total,
         "today": today_count,
@@ -369,13 +401,15 @@ def build_summary():
         "last_time": last_time,
         "series": [{"label": k, "value": v} for k, v in series.items()],
         "fields": [
-            {"id": f["id"], "label": f["label"], "type": f["type"],
+            {"id": f["id"], "label": f["label"], "short": f.get("short", ""),
+             "type": f["type"],
              "grp": f["grp"], "item_label": f["item_label"],
              "header": col_header(f),
              "show_if": f.get("show_if"), "show_if_value": f.get("show_if_value")}
             for f in FLAT
         ],
         "field_sums": field_sums,
+        "tracker": tracker,
         "rows": [
             {"id": r["id"], "created_at": r["created_at"], "data": parse_data(r)}
             for r in rows
@@ -492,9 +526,6 @@ def build_workbook(s):
     return wb
 
 
-EXPORTS_DIR = os.path.join(BASE_DIR, "exports")
-
-
 @app.route("/admin/export")
 def admin_export():
     """सीधा डाउनलोड — असली होस्टिंग (Render/Railway) पर यही बटन चलता है"""
@@ -511,31 +542,6 @@ def admin_export():
         download_name=fname,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
-
-
-@app.route("/admin/make_excel")
-def admin_make_excel():
-    """
-    प्रीव्यू के लिए फ़ाइल बनाओ (workspace exports/ फ़ोल्डर में सहेजो)।
-    चैट के प्रीव्यू में ब्राउज़र डाउनलोड ब्लॉक होते हैं, इसलिए फ़ाइल यहाँ बनती
-    है और चैट के फ़ाइल दर्शक से देखी/डाउनलोड की जा सकती है।
-    """
-    if not is_admin():
-        abort(403)
-    os.makedirs(EXPORTS_DIR, exist_ok=True)
-    wb = build_workbook(build_summary())
-    fname = f"kary-pragati-vritt_{datetime.now().strftime('%Y-%m-%d_%H%M')}.xlsx"
-    wb.save(os.path.join(EXPORTS_DIR, fname))
-
-    # पुरानी फ़ाइलें साफ़ रखें (अंतिम 10)
-    try:
-        files = sorted(os.listdir(EXPORTS_DIR), reverse=True)
-        for old in files[10:]:
-            os.remove(os.path.join(EXPORTS_DIR, old))
-    except OSError:
-        pass
-
-    return render_template("excel_done.html", filename=fname, site=SITE_TITLE)
 
 
 # ---------------------------------------------------------------- रन

@@ -9,13 +9,20 @@
 <body class="admin-page">
   <header class="topbar">
     <div class="topbar-inner">
-      <div class="brand">📊 {{ title }} <span class="badge-admin">एडमिन</span></div>
+      <div class="brand">
+        <div class="brand-row">
+          {% if logo %}<img src="{{ url_for('static', filename='logo.png') }}" class="logo-inline" alt="लोगो">{% endif %}
+          <span>{{ org_name or site }}</span>
+          <span class="badge-admin">एडमिन</span>
+        </div>
+        {% if org_tagline %}<div class="brand-sub">{{ org_tagline }}</div>{% endif %}
+        {% if org_sub %}<div class="brand-sub">{{ org_sub }}</div>{% endif %}
+      </div>
       <div class="topbar-actions">
         <span class="live-dot" id="liveDot"></span>
         <span id="lastUpdate" class="last-update">—</span>
         <a href="{{ url_for('form_page') }}" class="btn-ghost" target="_blank">👁 फॉर्म देखें</a>
         <a href="{{ export_url }}" class="btn-green">⬇ Excel डाउनलोड</a>
-        <a href="{{ preview_url }}" class="btn-ghost">📂 प्रीव्यू फ़ाइल बनाएँ</a>
         <form method="POST" action="{{ url_for('admin_clear') }}" class="inline-form"
               onsubmit="return confirm('क्या आप सारा डेटा साफ़ करना चाहते हैं? यह क्रिया वापस नहीं हो सकती।');">
           <button class="btn-ghost btn-danger">🗑 साफ़ करें</button>
@@ -37,6 +44,16 @@
       </div>
     </div>
 
+    <!-- उत्तर-सूची ट्रैकर -->
+    <div class="card tracker-card" id="trackerCard">
+      <div class="tracker-head">
+        <h2>📌 उत्तर-सूची — किस प्रांत ने भरा?</h2>
+        <span class="tracker-count" id="trkCount"></span>
+      </div>
+      <div class="tracker-progress" id="trkBar"></div>
+      <div class="tracker-grid" id="trkGrid"></div>
+    </div>
+
     <!-- आँकड़े कार्ड -->
     <div class="stat-grid">
       <div class="stat-card sc1"><div class="stat-num" id="stTotal">0</div><div class="stat-label">कुल उत्तर (प्रांत)</div></div>
@@ -52,7 +69,10 @@
     <div class="card">
       <div class="table-head">
         <h2>📋 सभी उत्तर (तालिका)</h2>
-        <input type="text" id="searchBox" placeholder="🔍 खोजें (प्रांत, अध्यक्ष, उत्तर...)" oninput="renderTable()">
+        <div class="table-tools">
+          <button class="btn-ghost btn-sm" id="lblBtn" onclick="toggleLabels()">👁 पूर्ण नाम</button>
+          <input type="text" id="searchBox" placeholder="🔍 खोजें (प्रांत, अध्यक्ष, उत्तर...)" oninput="renderTable()">
+        </div>
       </div>
       <div class="table-wrap">
         <table id="respTable">
@@ -74,12 +94,33 @@ const COLORS = ["#1D4ED8", "#059669", "#D97706", "#7C3AED", "#DC2626", "#0EA5E9"
 const ADMIN_KEY = new URLSearchParams(location.search).get('key') || '';
 const API_URL = "{{ url_for('admin_api_data') }}" + (ADMIN_KEY ? "?key=" + encodeURIComponent(ADMIN_KEY) : "");
 
+// नाम-मोड: डिफ़ॉल्ट संक्षिप्त (localStorage में याद रहता है)
+let USE_SHORT = localStorage.getItem('kpv_labels') !== 'full';
+function updateLblBtn(){
+  document.getElementById('lblBtn').textContent = USE_SHORT ? "👁 पूर्ण नाम" : "👁 संक्षिप्त नाम";
+}
+function toggleLabels(){
+  USE_SHORT = !USE_SHORT;
+  localStorage.setItem('kpv_labels', USE_SHORT ? 'short' : 'full');
+  updateLblBtn(); renderAll();
+}
+function fLabel(f){
+  const base = (USE_SHORT && f.short) ? f.short : f.label;
+  return f.grp ? (f.grp + " — " + base) : base;
+}
+function fTitle(f){
+  return (f.grp ? (f.grp + " — ") : "") + f.label;
+}
 function esc(s){
   return String(s ?? "").replace(/[&<>"']/g, c => (
     {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]
   ));
 }
 function num(v){ const n = parseFloat(v); return isNaN(n) ? 0 : n; }
+function shortDate(t){
+  if (!t) return "—";
+  return (t.slice(8,10) + "/" + t.slice(5,7) + " " + t.slice(11,16));
+}
 
 async function refresh(){
   try{
@@ -93,17 +134,58 @@ async function refresh(){
     document.getElementById('liveDot').classList.remove('on');
   }
 }
-function renderAll(){ renderStats(); renderCharts(); renderTable(); }
+function renderAll(){ renderTracker(); renderStats(); renderCharts(); renderTable(); }
 
 function renderStats(){
   document.getElementById('stTotal').textContent = DATA.total;
   document.getElementById('stToday').textContent = DATA.today;
   document.getElementById('stWeek').textContent = DATA.week;
-  const lt = DATA.last_time;
-  document.getElementById('stLast').textContent = lt ? lt.slice(8,10) + "/" + lt.slice(5,7) + " " + lt.slice(11,16) : "—";
+  document.getElementById('stLast').textContent = shortDate(DATA.last_time).slice(0,5) + " " + shortDate(DATA.last_time).slice(6);
 }
 
-/* ================= इन्फोग्राफिक्स (शुद्ध SVG/CSS — कोई बाहरी लाइब्रेरी नहीं) ================= */
+/* ================= उत्तर-सूची ट्रैकर ================= */
+function filterProvince(name){
+  const sb = document.getElementById('searchBox');
+  sb.value = name;
+  renderTable();
+  document.querySelector('.table-head')?.scrollIntoView({behavior:'smooth', block:'start'});
+}
+function renderTracker(){
+  const t = DATA.tracker;
+  const grid = document.getElementById('trkGrid');
+  const count = document.getElementById('trkCount');
+  const bar = document.getElementById('trkBar');
+  if (!t) { grid.innerHTML = ""; return; }
+
+  let html = "", filledN = 0, totalN = 0;
+  if (t.status && t.status.length){
+    totalN = t.status.length; filledN = t.status.filter(s=>s.filled).length;
+    count.textContent = filledN + " / " + totalN + " प्रांत भर चुके";
+    bar.innerHTML = `<div class="bar-fill" style="width:${totalN ? Math.round(filledN*100/totalN) : 0}%"></div>`;
+    t.status.forEach(s => {
+      if (s.filled){
+        html += `<button class="trk-chip ok" title="${esc(s.name)} — भरा: ${shortDate(s.at)}${s.head ? ' · ' + esc(s.head) : ''}" onclick="filterProvince('${esc(s.name).replace(/'/g,"\\'")}')">
+          <span class="trk-ico">✓</span>${esc(s.name)}
+          <span class="trk-sub">${shortDate(s.at).slice(0,5)}</span></button>`;
+      } else {
+        html += `<button class="trk-chip pend" title="${esc(s.name)} — अभी बाकी है" onclick="filterProvince('${esc(s.name).replace(/'/g,"\\'")}')">
+          <span class="trk-ico">⏳</span>${esc(s.name)}
+          <span class="trk-sub">बाकी</span></button>`;
+      }
+    });
+  } else {
+    count.textContent = "सूची सेट नहीं — survey_config.py में EXPECTED_PROVINCES भरें";
+    bar.innerHTML = "";
+  }
+  (t.extra || []).forEach(x => {
+    html += `<button class="trk-chip other" title="${esc(x.name)} — सूची से बाहर, पर जमा: ${shortDate(x.at)}" onclick="filterProvince('${esc(x.name).replace(/'/g,"\\'")}')">
+      <span class="trk-ico">＋</span>${esc(x.name)}
+      <span class="trk-sub">जमा</span></button>`;
+  });
+  grid.innerHTML = html || `<div class="chart-empty">अभी कोई उत्तर नहीं</div>`;
+}
+
+/* ================= इन्फोग्राफिक्स (शुद्ध SVG/CSS) ================= */
 function daysChartSVG(items){
   const W = 640, H = 170, pad = 26;
   const maxV = Math.max(...items.map(i=>i.value), 1);
@@ -120,14 +202,13 @@ function daysChartSVG(items){
 }
 
 function sumBars(fields, sums){
-  // "वर्तमान बनाम लक्ष्य" जैसे कुल योग बार
   const maxV = Math.max(...fields.map(f => sums[f.id] || 0), 1);
   let html = `<div class="hbars">`;
   fields.forEach((f, i) => {
     const v = sums[f.id] || 0;
     const w = Math.max(2, Math.round(v / maxV * 100));
     html += `<div class="hbar-row">
-      <div class="hbar-label">${esc(f.label)}</div>
+      <div class="hbar-label" title="${esc(fTitle(f))}">${esc(fLabel(f))}</div>
       <div class="hbar-track"><div class="hbar-fill" style="width:${w}%;background:${COLORS[i % COLORS.length]}"></div></div>
       <div class="hbar-val">${v}</div>
     </div>`;
@@ -136,7 +217,6 @@ function sumBars(fields, sums){
 }
 
 function perResponseBars(field, rows, provField){
-  // प्रांत-वार तुलना (एक संख्यात्मक फ़ील्ड के लिए)
   const items = rows.map(r => ({
     label: (r.data[provField] || "").trim() || ("उत्तर #" + r.id),
     value: num(r.data[field.id])
@@ -148,7 +228,7 @@ function perResponseBars(field, rows, provField){
   top.forEach((it, i) => {
     const w = Math.max(2, Math.round(it.value / maxV * 100));
     html += `<div class="hbar-row">
-      <div class="hbar-label">${esc(it.label)}</div>
+      <div class="hbar-label" title="${esc(it.label)}">${esc(it.label)}</div>
       <div class="hbar-track"><div class="hbar-fill" style="width:${w}%;background:${COLORS[i % COLORS.length]}"></div></div>
       <div class="hbar-val">${it.value}</div>
     </div>`;
@@ -172,14 +252,13 @@ function textList(field, rows, provField){
 }
 
 function makeCard(title, inner){
-  return `<div class="card chart-card"><h3>${esc(title)}</h3><div class="chart-body">${inner}</div></div>`;
+  return `<div class="card chart-card"><h3 title="${esc(title)}">${esc(title)}</h3><div class="chart-body">${inner}</div></div>`;
 }
 
 function renderCharts(){
   const grid = document.getElementById('chartGrid');
   let html = makeCard("📅 पिछले 14 दिनों में उत्तर", daysChartSVG(DATA.series));
 
-  // प्रश्नों को grp (क.1, ख.2...) के अनुसार समूहित करें
   const grpOrder = [], grpMap = {};
   DATA.fields.forEach(f => {
     if (!f.grp) return;
@@ -198,8 +277,7 @@ function renderCharts(){
     else if (numF.length === 1) inner += perResponseBars(numF[0], DATA.rows, provField) + (txtF.length ? `<div class="chart-divider"></div>` : "");
     txtF.forEach(f => { inner += textList(f, DATA.rows, provField); });
     if (!inner.trim()) return;
-    const shortLabel = grp.label.length > 62 ? grp.label.slice(0, 62) + "…" : grp.label;
-    html += makeCard(`${g} · ${shortLabel}`, inner);
+    html += makeCard(`${g} · ${grp.label}`, inner);
   });
 
   grid.innerHTML = html;
@@ -212,8 +290,8 @@ function renderTable(){
   const empty = document.getElementById('emptyState');
   const q = (document.getElementById('searchBox').value || "").toLowerCase();
 
-  let h = `<tr><th>#</th><th>समय</th>`;
-  DATA.fields.forEach(f => h += `<th>${esc(f.header)}</th>`);
+  let h = `<tr><th class="th-idx">#</th><th class="th-time">समय</th>`;
+  DATA.fields.forEach(f => h += `<th title="${esc(fTitle(f))}">${esc(fLabel(f))}</th>`);
   h += `</tr>`;
   head.innerHTML = h;
 
@@ -232,8 +310,8 @@ function renderTable(){
     DATA.fields.forEach(f => {
       const v = (r.data[f.id] || "").trim();
       const na = f.show_if && (r.data[f.show_if] || "") !== f.show_if_value;
-      t += na ? `<td class="dim">लागू नहीं</td>`
-              : `<td class="${f.type === 'number' ? 'num-cell' : ''}">${v ? esc(v) : '<span class="dim">—</span>'}</td>`;
+      t += na ? `<td class="dim" title="${esc(fTitle(f))}">लागू नहीं</td>`
+              : `<td title="${esc(fTitle(f))}" class="${f.type === 'number' ? 'num-cell' : ''}">${v ? esc(v) : '<span class="dim">—</span>'}</td>`;
     });
     t += `</tr>`;
   });
@@ -249,6 +327,7 @@ function copyLink(){
   });
 }
 
+updateLblBtn();
 setInterval(refresh, 10000);
 refresh();
 </script>

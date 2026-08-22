@@ -8,6 +8,8 @@
 </head>
 <body class="form-page">
   <div class="card thankyou-card">
+    {% if logo %}<img src="{{ url_for('static', filename='logo.png') }}" class="login-logo" alt="लोगो">{% endif %}
+    {% if org_name %}<div class="login-org">{{ org_name }}</div>{% endif %}
     <div class="tick">✅</div>
     <h1>धन्यवाद!</h1>
     <p class="t-msg">{{ msg }}</p>
