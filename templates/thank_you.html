@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>धन्यवाद — {{ site }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="form-page">
+  <div class="card thankyou-card">
+    <div class="tick">✅</div>
+    <h1>धन्यवाद!</h1>
+    <p class="t-msg">{{ msg }}</p>
+    <a href="{{ url_for('form_page') }}" class="btn-secondary">➕ एक और उत्तर भेजें</a>
+  </div>
+</body>
+</html>

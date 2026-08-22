@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>फ़ाइल बन गई — {{ site }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="form-page">
+  <div class="card thankyou-card">
+    <div class="tick">📂</div>
+    <h1>Excel फ़ाइल बन गई!</h1>
+    <p class="t-msg">
+      फ़ाइल का नाम: <b style="color:#1E3A8A;word-break:break-all;">{{ filename }}</b><br><br>
+      यह फ़ाइल अभी आपके <b>चैट के "फ़ाइलें"</b> (workspace) में <b>exports</b> फ़ोल्डर में सुरक्षित है —
+      वहाँ से आप इसे खोल सकते हैं और डाउनलोड कर सकते हैं।<br><br>
+      📝 नोट: इस चैट-प्रीव्यू में ब्राउज़र "सीधा डाउनलोड" ब्लॉक करता है, इसलिए फ़ाइल यहाँ बनाई जाती है।
+      असली साइट (Render/Railway) पर "⬇ Excel डाउनलोड" बटन सीधा डाउनलोड कराएगा।
+    </p>
+    <a href="{{ url_for('admin') }}" class="btn-secondary">← डैशबोर्ड पर वापस</a>
+  </div>
+</body>
+</html>
