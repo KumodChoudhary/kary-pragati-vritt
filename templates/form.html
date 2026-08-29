@@ -20,6 +20,12 @@
         <div class="hero-badge">📋 {{ site }}</div>
       {% endif %}
     </div>
+    <nav class="topnav">
+      <a href="{{ url_for('index') }}">🏠 सभी फॉर्म</a>
+      {% for k, t in others %}
+      <a href="{{ url_for('form_page', survey=k) }}">⇄ {{ t }}</a>
+      {% endfor %}
+    </nav>
     <h1>{{ title }}</h1>
     <p>{{ desc }}</p>
   </div>
@@ -33,9 +39,38 @@
   {% endwith %}
 
   <div class="card form-card">
-    <form method="POST" action="{{ url_for('submit') }}" id="surveyForm" novalidate>
+    <form method="POST" action="{{ url_for('submit', survey=survey_key) }}" id="surveyForm" novalidate>
       <!-- स्पैम हनीपॉट (इंसानों को दिखता नहीं) -->
       <input type="text" name="website" value="" style="display:none" tabindex="-1" autocomplete="off">
+
+      {% if month_field or prov_dropdown %}
+      <!-- ऊपरी चयन-पट्टी: रिपोर्टिंग माह + प्रांत -->
+      <div class="top-picks">
+        {% if month_field %}
+        <div class="top-pick month-pick">
+          <label for="__month">🗓 रिपोर्टिंग माह <span class="req">*</span></label>
+          <select name="__month" id="__month" required>
+            {% for m in months %}
+            <option value="{{ m }}" {% if m == current_month %}selected{% endif %}>{{ m }}</option>
+            {% endfor %}
+          </select>
+          <small>जिस माह का विवरण भर रहे हैं, वही चुनें — डेटा उसी माह में दर्ज होगा।</small>
+        </div>
+        {% endif %}
+        {% if prov_dropdown %}
+        <div class="top-pick prov-pick">
+          <label for="prov">📍 प्रांत का नाम <span class="req">*</span></label>
+          <select name="prov" id="prov" required>
+            <option value="" selected>— प्रांत चुनें —</option>
+            {% for p in provinces %}
+            <option value="{{ p }}">{{ p }}</option>
+            {% endfor %}
+          </select>
+          <small>सूची से अपना प्रांत चुनें — टाइप करने की ज़रूरत नहीं, टाइपो नहीं होगा।</small>
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
 
       {% for sec in sections %}
       <section class="section-card" id="sec-{{ loop.index }}">
@@ -53,7 +88,8 @@
                 <span class="f-label">{{ f.label }}{% if f.required %}<span class="req">*</span>{% endif %}</span>
                 {% if f.type == 'number' %}
                   <input type="number" name="{{ f.id }}" min="0" step="any" inputmode="numeric"
-                         placeholder="{{ f.placeholder or '0' }}"{% if f.required %} required{% endif %}>
+                         placeholder="{{ f.placeholder or '0' }}"{% if f.required %} required{% endif %}
+                         {% if f.get('auto_sum') %}readonly class="auto-sum-field" data-from="{{ f.auto_sum | join(',') }}" tabindex="-1" title="वर्तमान + नवीन लक्ष्य — अपने-आप जुड़ता है"{% endif %}>
                 {% elif f.type == 'textarea' %}
                   <textarea name="{{ f.id }}" rows="3" placeholder="{{ f.placeholder or '' }}"{% if f.required %} required{% endif %}></textarea>
                 {% elif f.type == 'radio' %}
@@ -65,6 +101,11 @@
                     </label>
                     {% endfor %}
                   </div>
+                {% elif f.type == 'select' %}
+                  <select name="{{ f.id }}"{% if f.required %} required{% endif %}>
+                    <option value="">— चुनें —</option>
+                    {% for opt in f.options %}<option value="{{ opt }}">{{ opt }}</option>{% endfor %}
+                  </select>
                 {% else %}
                   <input type="text" name="{{ f.id }}" placeholder="{{ f.placeholder or '' }}"{% if f.required %} required{% endif %}>
                 {% endif %}
@@ -87,7 +128,13 @@
   <script>
     document.getElementById('surveyForm').addEventListener('submit', function (e) {
       let ok = true;
-      this.querySelectorAll('input[required], textarea[required]').forEach(el => {
+      // ऊपरी पट्टी के ड्रॉपडाउन (रिपोर्टिंग माह / प्रांत)
+      this.querySelectorAll('.top-picks select[required]').forEach(el => {
+        const box = el.closest('.top-pick');
+        if (!el.value.trim()) { box && box.classList.add('q-error'); ok = false; }
+        else { box && box.classList.remove('q-error'); }
+      });
+      this.querySelectorAll('input[required], textarea[required], select[required]').forEach(el => {
         const field = el.closest('.field');
         if (!field) return;
         if (field.classList.contains('conditional-field') && field.classList.contains('hidden')) return;
@@ -110,11 +157,15 @@
       }
     });
     // टाइप करते ही त्रुटि हटे
-    document.querySelectorAll('.field input, .field textarea').forEach(el => {
+    document.querySelectorAll('.field input, .field textarea, .field select').forEach(el => {
       el.addEventListener('input', () => el.closest('.field')?.classList.remove('q-error'));
     });
+    // ऊपरी पट्टी में चुनते ही त्रुटि हटे
+    document.querySelectorAll('.top-picks select').forEach(el => {
+      el.addEventListener('change', () => el.closest('.top-pick')?.classList.remove('q-error'));
+    });
 
-    // ===== सशर्त प्रश्न (जैसे ग.3 — "नहीं" चुनने पर ही तिथि दिखे) =====
+    // ===== सशर्त प्रश्न (जैसे "नहीं" चुनने पर ही अगला फ़ील्ड दिखे) =====
     function syncConditional() {
       document.querySelectorAll('.conditional-field').forEach(field => {
         const name = field.dataset.showIf;
@@ -125,7 +176,7 @@
         });
         field.classList.toggle('hidden', !match);
         if (!match) {
-          const inp = field.querySelector('input, textarea');
+          const inp = field.querySelector('input, textarea, select');
           if (inp && inp.value) inp.value = '';   // छिपने पर खाली करें
           field.classList.remove('q-error');
         }
@@ -135,6 +186,24 @@
       r.addEventListener('change', syncConditional);
     });
     syncConditional();
+
+    // ===== ऑटो-सम ("योग" फ़ील्ड अपने-आप जुड़े) =====
+    function refreshAutoSums() {
+      document.querySelectorAll('input.auto-sum-field').forEach(el => {
+        const parts = (el.dataset.from || '').split(',');
+        let sum = 0, has = false;
+        parts.forEach(p => {
+          const src = document.querySelector('[name="' + p.trim() + '"]');
+          const v = src ? parseFloat(src.value) : NaN;
+          if (!isNaN(v)) { sum += v; has = true; }
+        });
+        el.value = has ? sum : '';
+      });
+    }
+    document.querySelectorAll('input[type=number]').forEach(el => {
+      el.addEventListener('input', refreshAutoSums);
+    });
+    refreshAutoSums();
   </script>
 </body>
 </html>

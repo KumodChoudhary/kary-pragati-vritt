@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ org_name or site }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="form-page">
+  <div class="form-hero">
+    <div class="org-block">
+      {% if logo %}<img src="{{ url_for('static', filename='logo.png') }}" class="org-logo" alt="लोगो">{% endif %}
+      {% if org_name %}
+        <div class="org-text">
+          <div class="org-name">{{ org_name }}</div>
+          {% if org_tagline %}<div class="org-sub">{{ org_tagline }}</div>{% endif %}
+          {% if org_sub %}<div class="org-sub">{{ org_sub }}</div>{% endif %}
+        </div>
+      {% else %}
+        <div class="hero-badge">📋 {{ site }}</div>
+      {% endif %}
+    </div>
+    <h1>फॉर्म चुनें</h1>
+    <p>जो फॉर्म भरना है, उसे खोलें — किसी ईमेल या खाते की ज़रूरत नहीं है।</p>
+  </div>
+
+  <div class="survey-grid">
+    {% for key, s in surveys.items() %}
+    <a class="survey-card" href="{{ url_for('form_page', survey=key) }}">
+      <div class="survey-ico">{{ '📋' if loop.first else '📝' }}</div>
+      <div class="survey-title">{{ s['tab'] if s.get('tab') else s.title }}</div>
+      <div class="survey-desc">{{ s.desc }}</div>
+      <span class="btn-primary survey-btn">फॉर्म भरें ➤</span>
+    </a>
+    {% endfor %}
+  </div>
+
+  <footer class="form-footer">🔒 एडमिन? <a href="{{ url_for('admin') }}">डैशबोर्ड खोलें</a> · ⚡ {{ site }}</footer>
+</body>
+</html>

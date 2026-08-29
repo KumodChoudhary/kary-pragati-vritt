@@ -21,11 +21,13 @@
       <div class="topbar-actions">
         <span class="live-dot" id="liveDot"></span>
         <span id="lastUpdate" class="last-update">—</span>
-        <a href="{{ url_for('form_page') }}" class="btn-ghost" target="_blank">👁 फॉर्म देखें</a>
+        <a href="{{ url_for('form_page', survey=survey_key) }}" class="btn-ghost" target="_blank">👁 फॉर्म देखें</a>
         <a href="{{ export_url }}" class="btn-green">⬇ Excel डाउनलोड</a>
         <form method="POST" action="{{ url_for('admin_clear') }}" class="inline-form"
-              onsubmit="return confirm('क्या आप सारा डेटा साफ़ करना चाहते हैं? यह क्रिया वापस नहीं हो सकती।');">
-          <button class="btn-ghost btn-danger">🗑 साफ़ करें</button>
+              onsubmit="return confirm('इसी फॉर्म ({{ title }}) का सारा डेटा साफ़ हो जाएगा। पक्का?');">
+          <input type="hidden" name="survey" value="{{ survey_key }}">
+          {% if url_key %}<input type="hidden" name="key" value="{{ url_key }}">{% endif %}
+          <button class="btn-ghost btn-danger">🗑 इस फॉर्म का डेटा साफ़ करें</button>
         </form>
         <form method="POST" action="{{ url_for('admin_logout') }}" class="inline-form">
           <button class="btn-ghost">लॉगआउट</button>
@@ -35,19 +37,47 @@
   </header>
 
   <main class="container">
-    <!-- शेयर लिंक -->
+    <!-- फॉर्म टैब -->
+    <div class="tabs">
+      {% for k, s in surveys.items() %}
+      <a class="tab {% if k == survey_key %}active{% endif %}"
+         href="{{ url_for('admin', survey=k, key=url_key) if url_key else url_for('admin', survey=k) }}">
+        {{ s.get('tab', s.title) }}
+      </a>
+      {% endfor %}
+    </div>
+
+    <!-- शेयर लिंक (इसी फॉर्म का) -->
     <div class="card share-card">
-      <span class="share-label">🔗 शेयर लिंक (किसी को भी भेजें — ईमेल की ज़रूरत नहीं):</span>
+      <span class="share-label">🔗 शेयर लिंक — {{ title }}:</span>
       <div class="share-row">
-        <input type="text" id="shareUrl" readonly value="{{ url_for('form_page', _external=True) }}">
+        <input type="text" id="shareUrl" readonly value="{{ url_for('form_page', survey=survey_key, _external=True) }}">
         <button class="btn-primary" onclick="copyLink()">कॉपी करें</button>
       </div>
     </div>
 
+    {% if cfg.get('month_field') %}
+    <!-- माह-फ़िल्टर -->
+    <div class="card month-bar">
+      <span class="month-label">🗓 रिपोर्टिंग माह:</span>
+      <form method="GET" action="{{ url_for('admin') }}" class="month-form">
+        <input type="hidden" name="survey" value="{{ survey_key }}">
+        {% if url_key %}<input type="hidden" name="key" value="{{ url_key }}">{% endif %}
+        <select name="month" onchange="this.form.submit()">
+          <option value="all" {% if month == 'all' %}selected{% endif %}>सभी माह</option>
+          {% for m in months %}
+          <option value="{{ m }}" {% if month == m %}selected{% endif %}>{{ m }}</option>
+          {% endfor %}
+        </select>
+      </form>
+      <span class="month-hint">⬇ Excel भी इसी चयन का बनेगा</span>
+    </div>
+    {% endif %}
+
     <!-- उत्तर-सूची ट्रैकर -->
     <div class="card tracker-card" id="trackerCard">
       <div class="tracker-head">
-        <h2>📌 उत्तर-सूची — किस प्रांत ने भरा?</h2>
+        <h2>📌 उत्तर-सूची — किस प्रांत ने भरा? {% if cfg.get('month_field') and month != 'all' %}<span class="tracker-month">({{ month }})</span>{% endif %}</h2>
         <span class="tracker-count" id="trkCount"></span>
       </div>
       <div class="tracker-progress" id="trkBar"></div>
@@ -65,7 +95,7 @@
     <!-- इन्फोग्राफिक्स -->
     <div class="chart-grid" id="chartGrid"></div>
 
-    <!-- टेबल -->
+    <!-- तालिका -->
     <div class="card">
       <div class="table-head">
         <h2>📋 सभी उत्तर (तालिका)</h2>
@@ -79,7 +109,7 @@
           <thead id="tableHead"></thead>
           <tbody id="tableBody"></tbody>
         </table>
-        <div id="emptyState" class="empty-state" style="display:none">अभी तक कोई उत्तर नहीं आया। फॉर्म लिंक साझा करें! 🚀</div>
+        <div id="emptyState" class="empty-state" style="display:none">इस चयन में अभी कोई उत्तर नहीं आया। फॉर्म लिंक साझा करें! 🚀</div>
       </div>
     </div>
   </main>
@@ -90,9 +120,7 @@
 /* ================= डेटा + ऑटो-रिफ्रेश ================= */
 let DATA = null;
 const COLORS = ["#1D4ED8", "#059669", "#D97706", "#7C3AED", "#DC2626", "#0EA5E9", "#DB2777", "#14B8A6"];
-// कुकी-मुक्त कुंजी — URL से पढ़ो और हर अनुरोध में भेजो
-const ADMIN_KEY = new URLSearchParams(location.search).get('key') || '';
-const API_URL = "{{ url_for('admin_api_data') }}" + (ADMIN_KEY ? "?key=" + encodeURIComponent(ADMIN_KEY) : "");
+const API_URL = {{ data_url | tojson }};
 
 // नाम-मोड: डिफ़ॉल्ट संक्षिप्त (localStorage में याद रहता है)
 let USE_SHORT = localStorage.getItem('kpv_labels') !== 'full';
@@ -174,7 +202,7 @@ function renderTracker(){
       }
     });
   } else {
-    count.textContent = "सूची सेट नहीं — survey_config.py में EXPECTED_PROVINCES भरें";
+    count.textContent = "सूची सेट नहीं — survey_config.py में expected_provinces भरें";
     bar.innerHTML = "";
   }
   (t.extra || []).forEach(x => {
@@ -291,6 +319,7 @@ function renderTable(){
   const q = (document.getElementById('searchBox').value || "").toLowerCase();
 
   let h = `<tr><th class="th-idx">#</th><th class="th-time">समय</th>`;
+  if (DATA.show_month_col) h += `<th>माह</th>`;
   DATA.fields.forEach(f => h += `<th title="${esc(fTitle(f))}">${esc(fLabel(f))}</th>`);
   h += `</tr>`;
   head.innerHTML = h;
@@ -298,6 +327,7 @@ function renderTable(){
   const rows = DATA.rows.filter(r => {
     if (!q) return true;
     return JSON.stringify(r.data).toLowerCase().includes(q) ||
+           JSON.stringify(r.report_month || "").toLowerCase().includes(q) ||
            r.id.toString().includes(q) || r.created_at.toLowerCase().includes(q);
   });
 
@@ -307,6 +337,7 @@ function renderTable(){
   let t = "";
   rows.forEach((r, i) => {
     t += `<tr><td class="dim">${DATA.rows.length - i}</td><td class="mono">${esc(r.created_at.replace("T", " "))}</td>`;
+    if (DATA.show_month_col) t += `<td class="dim">${esc(r.report_month || "—")}</td>`;
     DATA.fields.forEach(f => {
       const v = (r.data[f.id] || "").trim();
       const na = f.show_if && (r.data[f.show_if] || "") !== f.show_if_value;
@@ -315,7 +346,8 @@ function renderTable(){
     });
     t += `</tr>`;
   });
-  body.innerHTML = t || `<tr><td colspan="${DATA.fields.length+2}" class="dim">कोई मेल नहीं मिला</td></tr>`;
+  const span = DATA.fields.length + 2 + (DATA.show_month_col ? 1 : 0);
+  body.innerHTML = t || `<tr><td colspan="${span}" class="dim">कोई मेल नहीं मिला</td></tr>`;
 }
 
 function copyLink(){
