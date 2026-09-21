@@ -20,12 +20,6 @@
         <div class="hero-badge">📋 {{ site }}</div>
       {% endif %}
     </div>
-    <nav class="topnav">
-      <a href="{{ url_for('index') }}">🏠 सभी फॉर्म</a>
-      {% for k, t in others %}
-      <a href="{{ url_for('form_page', survey=k) }}">⇄ {{ t }}</a>
-      {% endfor %}
-    </nav>
     <h1>{{ title }}</h1>
     <p>{{ desc }}</p>
   </div>
@@ -39,40 +33,19 @@
   {% endwith %}
 
   <div class="card form-card">
-    <form method="POST" action="{{ url_for('submit', survey=survey_key) }}" id="surveyForm" novalidate>
+    <form method="POST" action="{{ url_for('submit') }}" id="surveyForm" novalidate>
       <!-- स्पैम हनीपॉट (इंसानों को दिखता नहीं) -->
       <input type="text" name="website" value="" style="display:none" tabindex="-1" autocomplete="off">
 
-      {% if month_field or prov_dropdown %}
-      <!-- ऊपरी चयन-पट्टी: रिपोर्टिंग माह + प्रांत -->
-      <div class="top-picks">
-        {% if month_field %}
-        <div class="top-pick month-pick">
-          <label for="__month">🗓 रिपोर्टिंग माह <span class="req">*</span></label>
-          <select name="__month" id="__month" required>
-            {% for m in months %}
-            <option value="{{ m }}" {% if m == current_month %}selected{% endif %}>{{ m }}</option>
-            {% endfor %}
-          </select>
-          <small>जिस माह का विवरण भर रहे हैं, वही चुनें — डेटा उसी माह में दर्ज होगा।</small>
-        </div>
-        {% endif %}
-        {% if prov_dropdown %}
-        <div class="top-pick prov-pick">
-          <label for="prov">📍 प्रांत का नाम <span class="req">*</span></label>
-          <select name="prov" id="prov" required>
-            <option value="" selected>— प्रांत चुनें —</option>
-            {% for p in provinces %}
-            <option value="{{ p }}">{{ p }}</option>
-            {% endfor %}
-          </select>
-          <small>सूची से अपना प्रांत चुनें — टाइप करने की ज़रूरत नहीं, टाइपो नहीं होगा।</small>
-        </div>
-        {% endif %}
-      </div>
-      {% endif %}
-
+      {% set cur = namespace(part="") %}
       {% for sec in sections %}
+      {% if sec.part != cur.part %}
+        {% set cur.part = sec.part %}
+        <div class="part-banner">
+          <div class="part-name">📖 {{ sec.part }}</div>
+          {% if part_subtitles.get(sec.part) %}<div class="part-sub">{{ part_subtitles.get(sec.part) }}</div>{% endif %}
+        </div>
+      {% endif %}
       <section class="section-card" id="sec-{{ loop.index }}">
         <div class="sec-title">{{ sec.title }}</div>
 
@@ -85,11 +58,12 @@
               {% for f in item.fields %}
               <div class="field{% if f.full %} full{% endif %}{% if f.get('show_if') %} conditional-field hidden{% endif %}"
                    {% if f.get('show_if') %}data-show-if="{{ f.show_if }}" data-show-if-value="{{ f.show_if_value }}"{% endif %}>
-                <span class="f-label">{{ f.label }}{% if f.required %}<span class="req">*</span>{% endif %}</span>
+                <span class="f-label">{{ f.label }}{% if f.required %}<span class="req">*</span>{% endif %}{% if f.get('calc') %}<span class="auto-tag">स्वतः</span>{% endif %}</span>
                 {% if f.type == 'number' %}
                   <input type="number" name="{{ f.id }}" min="0" step="any" inputmode="numeric"
                          placeholder="{{ f.placeholder or '0' }}"{% if f.required %} required{% endif %}
-                         {% if f.get('auto_sum') %}readonly class="auto-sum-field" data-from="{{ f.auto_sum | join(',') }}" tabindex="-1" title="वर्तमान + नवीन लक्ष्य — अपने-आप जुड़ता है"{% endif %}>
+                         {% if f.get('readonly') %} readonly{% endif %}
+                         {% if f.get('calc') %} data-calc="{{ f.calc | join(',') }}"{% endif %}>
                 {% elif f.type == 'textarea' %}
                   <textarea name="{{ f.id }}" rows="3" placeholder="{{ f.placeholder or '' }}"{% if f.required %} required{% endif %}></textarea>
                 {% elif f.type == 'radio' %}
@@ -102,12 +76,16 @@
                     {% endfor %}
                   </div>
                 {% elif f.type == 'select' %}
-                  <select name="{{ f.id }}"{% if f.required %} required{% endif %}>
+                  <select name="{{ f.id }}"{% if f.required %} required{% endif %}
+                          {% if f.get('show_if') %}data-show-if="{{ f.show_if }}" data-show-if-value="{{ f.show_if_value }}"{% endif %}>
                     <option value="">— चुनें —</option>
-                    {% for opt in f.options %}<option value="{{ opt }}">{{ opt }}</option>{% endfor %}
+                    {% for opt in f.options %}
+                    <option value="{{ opt }}"{% if f.get('default') == '__current__' and opt == current_month %} selected{% endif %}>{{ opt }}</option>
+                    {% endfor %}
                   </select>
                 {% else %}
-                  <input type="text" name="{{ f.id }}" placeholder="{{ f.placeholder or '' }}"{% if f.required %} required{% endif %}>
+                  <input type="text" name="{{ f.id }}" placeholder="{{ f.placeholder or '' }}"{% if f.required %} required{% endif %}
+                         {% if f.get('autofill_from') %} data-autofill-from="{{ f.autofill_from }}"{% endif %}>
                 {% endif %}
               </div>
               {% endfor %}
@@ -126,15 +104,47 @@
   <footer class="form-footer">⚡ {{ site }} · सभी उत्तर स्वतः दर्ज होते हैं</footer>
 
   <script>
-    document.getElementById('surveyForm').addEventListener('submit', function (e) {
-      let ok = true;
-      // ऊपरी पट्टी के ड्रॉपडाउन (रिपोर्टिंग माह / प्रांत)
-      this.querySelectorAll('.top-picks select[required]').forEach(el => {
-        const box = el.closest('.top-pick');
-        if (!el.value.trim()) { box && box.classList.add('q-error'); ok = false; }
-        else { box && box.classList.remove('q-error'); }
+    const form = document.getElementById('surveyForm');
+
+    // ===== स्वतः-योग (वर्तमान + लक्ष्य = योग) =====
+    function recalcAll() {
+      document.querySelectorAll('input[data-calc]').forEach(el => {
+        const ids = el.dataset.calc.split(',');
+        let sum = 0, any = false;
+        ids.forEach(id => {
+          const src = form.querySelector(`[name="${id}"]`);
+          if (src && src.value.trim() !== '') {
+            const n = parseFloat(src.value);
+            if (!isNaN(n)) { sum += n; any = true; }
+          }
+        });
+        el.value = any ? (Number.isInteger(sum) ? sum : sum) : '';
       });
+    }
+    form.querySelectorAll('input[type=number]').forEach(el => {
+      el.addEventListener('input', recalcAll);
+    });
+    recalcAll();
+
+    // ===== Auto-fill (जैसे द्वितीय भाग का प्रांत — प्रथम भाग से) =====
+    document.querySelectorAll('[data-autofill-from]').forEach(el => {
+      const src = form.querySelector(`[name="${el.dataset.autofillFrom}"]`);
+      if (!src) return;
+      src.addEventListener('input', () => {
+        if (!el.value.trim() || el.dataset.autofilled === '1') {
+          el.value = src.value;
+          el.dataset.autofilled = '1';
+        }
+      });
+      el.addEventListener('input', () => { el.dataset.autofilled = ''; });  // हाथ से बदला तो पीछा छोड़ा
+    });
+
+    // ===== Submit validation =====
+    form.addEventListener('submit', function (e) {
+      recalcAll();
+      let ok = true;
       this.querySelectorAll('input[required], textarea[required], select[required]').forEach(el => {
+        if (el.readOnly) return;  // स्वतः-योग की जाँच ज़रूरी नहीं
         const field = el.closest('.field');
         if (!field) return;
         if (field.classList.contains('conditional-field') && field.classList.contains('hidden')) return;
@@ -159,13 +169,10 @@
     // टाइप करते ही त्रुटि हटे
     document.querySelectorAll('.field input, .field textarea, .field select').forEach(el => {
       el.addEventListener('input', () => el.closest('.field')?.classList.remove('q-error'));
-    });
-    // ऊपरी पट्टी में चुनते ही त्रुटि हटे
-    document.querySelectorAll('.top-picks select').forEach(el => {
-      el.addEventListener('change', () => el.closest('.top-pick')?.classList.remove('q-error'));
+      el.addEventListener('change', () => el.closest('.field')?.classList.remove('q-error'));
     });
 
-    // ===== सशर्त प्रश्न (जैसे "नहीं" चुनने पर ही अगला फ़ील्ड दिखे) =====
+    // ===== सशर्त प्रश्न (radio या dropdown — जैसे "नहीं"/"अन्य" चुनने पर ही दिखे) =====
     function syncConditional() {
       document.querySelectorAll('.conditional-field').forEach(field => {
         const name = field.dataset.showIf;
@@ -174,6 +181,8 @@
         document.querySelectorAll('input[name="' + name + '"]').forEach(r => {
           if (r.checked && r.value === value) match = true;
         });
+        const sel = form.querySelector('select[name="' + name + '"]');
+        if (sel && sel.value === value) match = true;
         field.classList.toggle('hidden', !match);
         if (!match) {
           const inp = field.querySelector('input, textarea, select');
@@ -182,28 +191,10 @@
         }
       });
     }
-    document.querySelectorAll('input[type=radio]').forEach(r => {
+    document.querySelectorAll('input[type=radio], select').forEach(r => {
       r.addEventListener('change', syncConditional);
     });
     syncConditional();
-
-    // ===== ऑटो-सम ("योग" फ़ील्ड अपने-आप जुड़े) =====
-    function refreshAutoSums() {
-      document.querySelectorAll('input.auto-sum-field').forEach(el => {
-        const parts = (el.dataset.from || '').split(',');
-        let sum = 0, has = false;
-        parts.forEach(p => {
-          const src = document.querySelector('[name="' + p.trim() + '"]');
-          const v = src ? parseFloat(src.value) : NaN;
-          if (!isNaN(v)) { sum += v; has = true; }
-        });
-        el.value = has ? sum : '';
-      });
-    }
-    document.querySelectorAll('input[type=number]').forEach(el => {
-      el.addEventListener('input', refreshAutoSums);
-    });
-    refreshAutoSums();
   </script>
 </body>
 </html>

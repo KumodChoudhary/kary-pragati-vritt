@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>डिप्लॉयमेंट गाइड — कार्य-प्रगति वृत्त</title>
+</head>
+<body style="margin:0;padding:0;background:#F3F4F6;font-family:'Noto Sans Devanagari','Mangal','Nirmala UI','Segoe UI',system-ui,sans-serif;color:#111827;line-height:1.7;">
+<div style="max-width:860px;margin:0 auto;padding:28px 16px 60px;">
+
+  <div style="background:linear-gradient(90deg,#1E3A8A,#1D4ED8);color:#fff;border-radius:16px;padding:26px 28px;margin-bottom:20px;">
+    <div style="font-size:13px;opacity:.9;margin-bottom:6px;">🚀 स्थायी लाइव लिंक — पूरा रास्ता</div>
+    <h1 style="margin:0;font-size:24px;">Render + Neon डिप्लॉयमेंट गाइड</h1>
+    <div style="margin-top:8px;font-size:13.5px;opacity:.92;">कुल समय ~25–30 मिनट · खर्च ₹0 · डेटा कभी नहीं मिटेगा<br>परिणाम: <b>https://kary-pragati-vritt.onrender.com/form</b> जैसा स्थायी लिंक</div>
+  </div>
+
+  <!-- स्टेप 0 -->
+  <div style="background:#FFF7ED;border:1.5px solid #FDBA74;border-radius:12px;padding:14px 18px;margin-bottom:14px;">
+    <b>📦 सबसे पहले:</b> चैट के फ़ाइल-क्षेत्र से <b>kary-pragati-vritt-deploy.zip</b> डाउनलोड करें और अपने कंप्यूटर पर खोलें (एक्सट्रैक्ट करें)।
+    उसकी सारी फ़ाइलें हम अगले स्टेप में GitHub पर डालेंगे।
+  </div>
+
+  <!-- स्टेप 1 -->
+  <div style="background:#fff;border-radius:14px;border:1px solid #E5E7EB;padding:20px 24px;margin-bottom:14px;">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+      <div style="width:34px;height:34px;border-radius:50%;background:#1D4ED8;color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">1</div>
+      <h2 style="margin:0;font-size:18px;color:#1E3A8A;">GitHub पर कोड डालें (~5 मिनट)</h2>
+    </div>
+    <ol style="margin:0 0 0 46px;padding-left:20px;font-size:14px;">
+      <li>खोलें <b>github.com</b> → लॉगिन → दाईं ओर <b>+</b> → <b>New repository</b></li>
+      <li>Repository name: <code>kary-pragati-vritt</code> · चुनें <b>Public</b> · बाकी डिफ़ॉल्ट · <b>Create repository</b></li>
+      <li>नए पेज पर नीचे लिखा मिलेगा <i>"…uploading an existing file"</i> → उस <b>uploading an existing file</b> लिंक पर क्लिक करें</li>
+      <li>अब अपनी एक्सट्रैक्ट की हुई फ़ोल्डर की सारी चीज़ें <b>खींचकर (drag &amp; drop)</b> डालें:
+        <div style="background:#F8FAFC;border-radius:10px;padding:10px 14px;margin:8px 0;">
+          app.py · survey_config.py · requirements.txt · render.yaml · Dockerfile · .gitignore · README.md · <b>templates फ़ोल्डर</b> · <b>static फ़ोल्डर</b>
+        </div>
+        (पूरा फ़ोल्डर खींच सकते हैं — फ़ोल्डर संरचना अपने-आप बन जाएगी)
+      </li>
+      <li>नीचे <b>Commit changes</b> दबाएँ → हो गया, कुछ ही सेकंड में फ़ाइलें दिखने लगेंगी</li>
+    </ol>
+    <div style="margin:10px 0 0 46px;background:#ECFDF5;border-radius:10px;padding:10px 14px;font-size:13.5px;color:#065F46;">
+      ✅ चेक: रेपो पेज पर <b>render.yaml</b> और <b>templates/</b> फ़ोल्डर दिख रहा है? तो स्टेप 2 पर जाएँ।
+    </div>
+  </div>
+
+  <!-- स्टेप 2 -->
+  <div style="background:#fff;border-radius:14px;border:1px solid #E5E7EB;padding:20px 24px;margin-bottom:14px;">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+      <div style="width:34px;height:34px;border-radius:50%;background:#059669;color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">2</div>
+      <h2 style="margin:0;font-size:18px;color:#065F46;">Neon — फ्री PostgreSQL डेटाबेस (~5 मिनट)</h2>
+    </div>
+    <p style="margin:0 0 8px 46px;font-size:14.5px;">यही वह चीज़ है जो आपका डेटा <b>हमेशा के लिए सुरक्षित</b> रखती है — होस्टिंग के रीस्टार्ट पर भी उत्तर नहीं मिटेंगे।</p>
+    <ol style="margin:0 0 0 46px;padding-left:20px;font-size:14px;">
+      <li>खोलें <b>neon.tech</b> → <b>Sign up</b> (GitHub/Google से) → मुफ़्त योजना</li>
+      <li><b>Create project</b> → नाम: <code>kary-pragati-vritt</code> · Region: जो निकटतम दिखे (जैसे Mumbai/Singapore) → Create</li>
+      <li>बने पेज पर <b>Connection string</b> मिलेगी — <b>Copy</b> दबाकर कहीं नोट कर लें
+        <div style="background:#F8FAFC;border-radius:10px;padding:10px 14px;margin:8px 0;font-family:monospace;font-size:12px;word-break:break-all;">postgresql://user:पास@ep-xxx.aws.neon.tech/neondb?sslmode=require</div>
+      </li>
+    </ol>
+    <div style="margin:10px 0 0 46px;background:#FEF3C7;border-radius:10px;padding:10px 14px;font-size:13.5px;color:#92400E;">
+      ⚠️ यह URL गुप्त है — किसी को न भेजें। इसे अगले स्टेप में Render को देना है।
+    </div>
+  </div>
+
+  <!-- स्टेप 3 -->
+  <div style="background:#fff;border-radius:14px;border:1px solid #E5E7EB;padding:20px 24px;margin-bottom:14px;">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+      <div style="width:34px;height:34px;border-radius:50%;background:#D97706;color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">3</div>
+      <h2 style="margin:0;font-size:18px;color:#92400E;">Render — डिप्लॉय (~10–15 मिनट)</h2>
+    </div>
+    <ol style="margin:0 0 0 46px;padding-left:20px;font-size:14px;">
+      <li>खोलें <b>render.com</b> → <b>Sign up</b> → <b>GitHub</b> से लॉगिन (और GitHub को अनुमति दें)</li>
+      <li><b>New +</b> → <b>Blueprint</b> चुनें → अपना रेपो <code>kary-pragati-vritt</code> चुनें
+        <div style="background:#F8FAFC;border-radius:10px;padding:10px 14px;margin:8px 0;font-size:13px;">
+          👉 यहाँ आपका <b>render.yaml</b> अपने-आप पढ़ा जाएगा — कुछ भी टाइप नहीं करना!
+        </div>
+      </li>
+      <li>नीचे <b>पर्यावरण-चर (Environment Variables)</b> भरें:
+        <table style="width:100%;border-collapse:collapse;margin:8px 0;font-size:13px;">
+          <tr style="background:#EFF6FF;"><th style="padding:7px 10px;border:1px solid #BFDBFE;text-align:left;">नाम</th><th style="padding:7px 10px;border:1px solid #BFDBFE;text-align:left;">क्या भरें</th></tr>
+          <tr><td style="padding:7px 10px;border:1px solid #E5E7EB;"><code>DATABASE_URL</code></td><td style="padding:7px 10px;border:1px solid #E5E7EB;">स्टेप 2 की Neon URL पेस्ट करें</td></tr>
+          <tr style="background:#F8FAFC;"><td style="padding:7px 10px;border:1px solid #E5E7EB;"><code>ADMIN_PASSWORD</code></td><td style="padding:7px 10px;border:1px solid #E5E7EB;">अपना नया मजबूत पासवर्ड (admin123 नहीं!)</td></tr>
+          <tr><td style="padding:7px 10px;border:1px solid #E5E7EB;"><code>SECRET_KEY</code></td><td style="padding:7px 10px;border:1px solid #E5E7EB;">कुछ न करें — अपने-आप बनेगा ✓</td></tr>
+        </table>
+      </li>
+      <li><b>Apply / Deploy</b> दबाएँ → 2–3 मिनट निर्माण चलेगा (लॉग देखते रहें — <i>"Your service is live"</i>)</li>
+      <li>डैशबोर्ड में <b>Settings → Environment</b> से पासवर्ड बाद में भी बदल सकते हैं</li>
+    </ol>
+    <div style="margin:10px 0 0 46px;background:#ECFDF5;border-radius:10px;padding:10px 14px;font-size:13.5px;color:#065F46;">
+      ✅ आपको <b>दो लिंक</b> मिलेंगे:<br>
+      • फॉर्म (शेयर लिंक): <code>https://kary-pragati-vritt.onrender.com/form</code><br>
+      • एडमिन: <code>https://kary-pragati-vritt.onrender.com/admin</code>
+    </div>
+  </div>
+
+  <!-- स्टेप 4 -->
+  <div style="background:#fff;border-radius:14px;border:1px solid #E5E7EB;padding:20px 24px;margin-bottom:14px;">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+      <div style="width:34px;height:34px;border-radius:50%;background:#7C3AED;color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">4</div>
+      <h2 style="margin:0;font-size:18px;color:#5B21B6;">परीक्षण (~3 मिनट)</h2>
+    </div>
+    <ol style="margin:0 0 0 46px;padding-left:20px;font-size:14px;">
+      <li>फॉर्म लिंक खोलें → एक परीक्षण उत्तर भरें → <b>धन्यवाद पेज</b> आए</li>
+      <li><b>/admin</b> खोलें → अपना नया पासवर्ड → डैशबोर्ड में परीक्षण उत्तर दिखे (10 सेकंड)</li>
+      <li><b>⬇ Excel डाउनलोड</b> दबाएँ → असली साइट पर <b>फ़ाइल सीधे डाउनलोड</b> होगी (प्रीव्यू वाली समस्या यहाँ नहीं!)</li>
+      <li>परीक्षण उत्तर हटाने के लिए डैशबोर्ड में <b>🗑 साफ़ करें</b></li>
+    </ol>
+  </div>
+
+  <!-- स्टेप 5 -->
+  <div style="background:#fff;border-radius:14px;border:1px solid #E5E7EB;padding:20px 24px;margin-bottom:14px;">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+      <div style="width:34px;height:34px;border-radius:50%;background:#DC2626;color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">5</div>
+      <h2 style="margin:0;font-size:18px;color:#991B1B;">शेयर + याद रखने योग्य बातें</h2>
+    </div>
+    <p style="margin:0 0 8px 46px;font-size:14.5px;">प्रांत अध्यक्षों को भेजने का संदेश (कॉपी करें):</p>
+    <div style="margin:0 0 10px 46px;background:#F8FAFC;border-radius:10px;padding:12px 16px;font-size:13.5px;border:1px dashed #94A3B8;">
+      🙏 कृपया अपने प्रांत का <b>कार्य-प्रगति विवरण</b> यह फॉर्म भरकर 31 अगस्त, 2026 तक भेजें:<br>
+      <b>https://kary-pragati-vritt.onrender.com/form</b><br>
+      (किसी ईमेल/खाते की ज़रूरत नहीं — कुछ ही मिनट लगेंगे)
+    </div>
+    <ul style="margin:0 0 0 46px;padding-left:20px;font-size:13.5px;">
+      <li>🪴 <b>फ्री प्लान सोता है:</b> ~15 मिनट उपयोग न होने पर पहला खोलना ~40–50 सेकंड लेता है (फिर तेज़)। यह सामान्य है — चिंता न करें।</li>
+      <li>🔐 <b>एडमिन लिंक/पासवर्ड कभी सार्वजनिक न करें</b> — सिर्फ़ फॉर्म वाला लिंक ही शेयर करें।</li>
+      <li>📝 <b>प्रश्न बदलने हों</b> तो GitHub रेपो में <code>survey_config.py</code> बदलें → Render अपने-आप दोबारा डिप्लॉय कर देगा।</li>
+      <li>📊 डेटा Neon PostgreSQL में है — रोज़ाना <b>Excel डाउनलोड</b> करते रहें (हर बार ताज़ा)।</li>
+    </ul>
+  </div>
+
+  <!-- समस्या निवारण -->
+  <div style="background:#EFF6FF;border:1.5px solid #BFDBFE;border-radius:14px;padding:18px 22px;">
+    <h3 style="margin:0 0 10px;color:#1E3A8A;font-size:16px;">🛠 अगर कुछ अटक जाए तो</h3>
+    <ul style="margin:0;padding-left:20px;font-size:13.5px;">
+      <li><b>कोई त्रुटि-संदेश</b> दिखे → स्क्रीनशॉट या संदेश मुझे भेजें, मैं तुरंत हल बताऊँगा</li>
+      <li><b>डिप्लॉय लंबा चले</b> → 3–4 मिनट सामान्य है; लॉग में "Build" → "Deploy" क्रम दिखेगा</li>
+      <li><b>फॉर्म खुलने में समय लगे</b> → पहली बार जागने में देर, दोबारा खोलें</li>
+      <li>डिप्लॉय हो जाने पर मुझे <b>लाइव लिंक भेजें</b> — मैं इसे जाँचकर बताऊँगा कि सब ठीक है</li>
+    </ul>
+  </div>
+
+</div>
+</body>
+</html>

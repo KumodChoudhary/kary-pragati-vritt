@@ -1,287 +1,559 @@
 # -*- coding: utf-8 -*-
 """
-कार्य-प्रगति वृत्त — बहु-फॉर्म विन्यास (यहीं से सब कुछ बदलें)
-================================================================
-◎ SURVEYS = आपके सभी फॉर्मों की सूची। हर फॉर्म का:
-    - title / desc / instruction / thank_you  = पेज पर दिखने वाले टेक्स्ट
-    - month_field  = रिपोर्टिंग-माह ड्रॉपडाउन चाहिए? (True/False)
-    - expected_provinces = उत्तर-सूची ट्रैकर के लिए प्रांतों की सूची
-    - sections     = प्रश्न (खंड → items → fields)
-◎ फ़ील्ड प्रकार: number | text | textarea | radio (options के साथ) | select (options के साथ)
-◎ सशर्त फ़ील्ड: "show_if": "<दूसरे-फ़ील्ड-की-id>", "show_if_value": "नहीं"
-   → वह फ़ील्ड तभी दिखेगा/ज़रूरी होगा जब दूसरे फ़ील्ड का उत्तर वह मान हो।
-◎ prov_dropdown = प्रांत का नाम ऊपर ड्रॉपडाउन से चुनें (टाइपिंग नहीं, टाइपो नहीं)
+कार्य-वृत्त — फॉर्म विन्यास (यहीं से प्रश्न बदलें)
+====================================================
+संरचना:
+SECTIONS = [
+  { "part": "प्रथम भाग",            # दो भाग: प्रथम भाग / द्वितीय भाग
+    "title": "खंड का शीर्षक",
+    "items": [
+      { "grp": "क.1",
+        "label": "प्रश्न का पूरा वाक्य",
+        "fields": [
+          { "id": "p1_kha1_cur", "label": "पूरा नाम (Excel/PDF हेडर)",
+            "short": "संक्षिप्त नाम (डैशबोर्ड)", "type": "number",
+            "required": True, "placeholder": "0" },
+        ] } ] }
+]
+
+विशेष फ़ील्ड:
+- "calc": ["id1", "id2"]  → योग अपने आप (id1 + id2), readonly
+- "show_if"/"show_if_value" → सशर्त फ़ील्ड (जैसे "नहीं" चुनने पर ही दिखे)
+- "autofill_from": "p1_prov" → उस फ़ील्ड से अपने आप भरे (बदला भी जा सकता है)
 """
 
-# =================== हर माह सिर्फ़ ये 4 लाइन बदलें ===================
-RPT_MONTH  = "अगस्त, 2026"      # जिस माह का विवरण भरा जा रहा है (ड. खंड में दिखेगा)
-TGT        = "सितंबर"            # लक्ष्य-वाक्यांश ("सितंबर माह का लक्ष्य" जैसा बनेगा)
-TGT_MONTH  = "सितंबर, 2026"      # घ.1 खंड में दिखने वाला पूरा माह-नाम
-DEADLINE   = "31 अगस्त, 2026"    # निर्देश में दिखने वाली अंतिम तिथि
-CURRENT_MONTH = "अगस्त, 2026"    # ड्रॉपडाउन में पहले से चुना रहेगा
-# =====================================================================
+import calendar
+from datetime import datetime, timezone, timedelta
 
-# ============ रिपोर्टिंग-माह ड्रॉपडाउन के विकल्प ============
-MONTHS = [
-    "अगस्त, 2026", "सितंबर, 2026", "अक्टूबर, 2026", "नवंबर, 2026",
-    "दिसंबर, 2026", "जनवरी, 2027", "फ़रवरी, 2027", "मार्च, 2027",
-    "अप्रैल, 2027", "मई, 2027", "जून, 2027", "जुलाई, 2027",
+# ============ माह / वर्ष — हर माह अपने आप बदलेगा (IST) ============
+HINDI_MONTHS = [
+    "जनवरी", "फरवरी", "मार्च", "अप्रैल", "मई", "जून",
+    "जुलाई", "अगस्त", "सितंबर", "अक्टूबर", "नवंबर", "दिसंबर",
 ]
+
+
+def _now_ist():
+    """भारत का वर्तमान समय (Asia/Kolkata)।"""
+    try:
+        from zoneinfo import ZoneInfo
+        return datetime.now(ZoneInfo("Asia/Kolkata"))
+    except Exception:
+        return datetime.now(timezone(timedelta(hours=5, minutes=30)))
+
+
+def current_month_year():
+    """('सितंबर', 2026) जैसा — हर request पर ताज़ा।"""
+    n = _now_ist()
+    return HINDI_MONTHS[n.month - 1], n.year
+
+
+def get_month_label():
+    """'सितंबर, 2026' — टाइटल, Excel, PDF में यही दिखेगा।"""
+    m, y = current_month_year()
+    return f"{m}, {y}"
+
+
+def get_form_title():
+    return f"कार्य-वृत्त — {get_month_label()}"
+
+
+def get_instruction():
+    """जमा करने की अंतिम तिथि = चालू माह का अंतिम दिन (अपने आप)।"""
+    n = _now_ist()
+    last_day = calendar.monthrange(n.year, n.month)[1]
+    m, y = HINDI_MONTHS[n.month - 1], n.year
+    return f"आप इस फॉर्मेट को भरकर {last_day} {m}, {y} तक भेजने का कष्ट करेंगे।"
+
 
 # ============ संगठन की जानकारी (हेडर में दिखती है) ============
 ORG_NAME = "वनवासी रक्षा परिवार फॉउन्डेशन"
-ORG_TAGLINE = "वन एवं नगरीय वंचित समाज के उत्थान को समर्पित"   # उप-शीर्षक 1 (छोटा)
-ORG_SUB = "राष्ट्र-रक्षा-यज्ञ अनुष्ठान"                        # उप-शीर्षक 2 (छोटा)
-# लोगो: static/logo.png (फ़ाइल न हो तो केवल नाम दिखेगा)
+ORG_TAGLINE = "वन एवं नगरीय वंचित समाज के उत्थान को समर्पित"
+ORG_SUB = "राष्ट्र-रक्षा-यज्ञ अनुष्ठान"
+# लोगो: static/logo.png फ़ाइल रखें (अगर फ़ाइल न हो तो केवल नाम दिखेगा)
 
-SITE_TITLE = "कार्य-प्रगति वृत्त"
+# ============ दो भागों की जानकारी ============
+PART_ORDER = ["प्रथम भाग", "द्वितीय भाग"]
+PART_SUBTITLES = {
+    "प्रथम भाग": "संस्कार परिवार योजना एवं राष्ट्र रक्षा यज्ञ",
+    "द्वितीय भाग": "प्रतिभा विकास केन्द्र संबंधी विवरण",
+}
+PART_SHORT = {"प्रथम भाग": "1", "द्वितीय भाग": "2"}  # डैशबोर्ड टैग हेतु
 
-# ============ साझा प्रांत-सूची (दोनों फॉर्म उपयोग करते हैं) ============
-PROVINCES = [
-    "उ. असम", "द. असम", "उ. बंग", "द. बंग", "मं. बंग",
-    "पू. ओडिशा", "प. ओडिशा", "झारखण्ड", "द. बिहार", "छत्तीसगढ़",
-    "ब्रज", "मालवा", "चित्तौड़", "जयपुर", "द. गुजरात",
-    "दिल्ली उत्तरी", "दिल्ली दक्षिणी", "दिल्ली पूर्वी",
-    "उ. तमिलनाडु", "द. तमिलनाडु",
+# प्रांत dropdown में अंतिम विकल्प — चुनने पर नीचे textbox खुलता है
+OTHER_PROV_LABEL = "अन्य (नीचे लिखें)"
+
+# ============ अपेक्षित प्रांतों की आधिकारिक सूची (उत्तर-सूची ट्रैकर) ============
+EXPECTED_PROVINCES = [
+    "उ. असम",
+    "द. असम",
+    "उ. बंग",
+    "द. बंग",
+    "मं. बंग",
+    "पू. ओडिशा",
+    "प. ओडिशा",
+    "झारखण्ड",
+    "द. बिहार",
+    "छत्तीसगढ़",
+    "ब्रज",
+    "मालवा",
+    "चित्तौड़",
+    "जयपुर",
+    "द. गुजरात",
+    "दिल्ली उत्तरी",
+    "दिल्ली दक्षिणी",
+    "दिल्ली पूर्वी",
+    "उ. तमिलनाडु",
+    "द. तमिलनाडु",
 ]
 
-# ============ प्रारंभिक प्रश्न (दोनों फॉर्मों में समान) ============
-# नोट: "प्रांत का नाम" अब यहाँ नहीं — दोनों फॉर्मों में ऊपर ड्रॉपडाउन से चुना जाता है
-# (prov_dropdown=True देखें), ताकि टाइपो की समस्या न रहे।
-PRELIM_SECTION = {
-    "title": "प्रारंभिक जानकारी",
-    "items": [
-        {"grp": "", "label": "प्रांत अध्यक्ष/प्रमुख", "fields": [
-            {"id": "head", "label": "प्रांत अध्यक्ष / प्रमुख", "short": "अध्यक्ष/प्रमुख", "type": "text",
-             "required": True, "placeholder": "श्री / श्रीमती ......................", "full": True}]},
-    ],
-}
+FORM_DESC = "कृपया नीचे दिए गए सभी प्रश्नों के उत्तर भरें। सभी संख्याएँ अंकों में लिखें।"
+THANK_YOU_MSG = "धन्यवाद! आपका कार्य-वृत्त विवरण सफलतापूर्वक दर्ज हो गया। 🙏"
+SITE_TITLE = "कार्य-वृत्त"
 
-# ########################################################################
-#                              आपके फॉर्म
-# ########################################################################
-SURVEYS = {
-
-    # ======================= फॉर्म 1: कार्य-प्रगति वृत्त =======================
-    "progress": {
-        "title": "कार्य-प्रगति वृत्त",
-        "tab": "📋 कार्य-प्रगति वृत्त",
-        "desc": "कृपया नीचे दिए गए सभी प्रश्नों के उत्तर भरें। सभी संख्याएँ अंकों में लिखें।",
-        "instruction": f"आप इस फॉर्मेट को भरकर {DEADLINE} तक भेजने का कष्ट करेंगे।",
-        "thank_you": "धन्यवाद! आपका कार्य-प्रगति विवरण सफलतापूर्वक दर्ज हो गया। 🙏",
-        "month_field": True,           # ← माह ड्रॉपडाउन इसी फॉर्म पर है
-        "prov_dropdown": True,         # ← प्रांत भी ऊपर ड्रॉपडाउन से चुना जाए (टाइपो रोक)
-        "expected_provinces": PROVINCES,
-        # Excel की "सारांश" शीट में प्रांत-वार मुख्य आँकड़े (क्रम से)
-        "excel_quick": [
-            {"id": "k1_cur", "label": f"वर्तमान जिले"},
-            {"id": "k1_tgt", "label": f"{TGT} लक्ष्य (जिले)"},
-            {"id": "k3", "label": "नगर"},
-            {"id": "gh1", "label": "यज्ञ स्थल"},
-            {"id": "d1_done", "label": "मिलन सम्पन्न (स्थान)"},
-            {"id": "d2_pres", "label": "मिलन उपस्थिति"},
-        ],
-        "sections": [
-            PRELIM_SECTION,
-
-            # ---------- क. संस्कार परिवार योजना का व्याप ----------
-            {"title": "क. संस्कार परिवार योजना का व्याप", "items": [
-                {"grp": "क.1", "label": f"संस्कार परिवार युक्त जिलों की वर्तमान संख्या तथा {TGT} माह का विस्तार लक्ष्य", "fields": [
-                    {"id": "k1_cur", "label": "जिलों की वर्तमान संख्या", "short": "जिले — वर्तमान",
-                     "type": "number", "required": True, "placeholder": "0"},
-                    {"id": "k1_tgt", "label": f"{TGT} माह का विस्तार लक्ष्य", "short": f"जिले — {TGT} लक्ष्य",
-                     "type": "number", "required": True, "placeholder": "0"}]},
-                {"grp": "क.2", "label": f"संस्कार परिवार युक्त प्रखण्डों की वर्तमान संख्या तथा {TGT} माह का लक्ष्य", "fields": [
-                    {"id": "k2_cur", "label": "प्रखण्डों की वर्तमान संख्या", "short": "प्रखण्ड — वर्तमान",
-                     "type": "number", "required": True, "placeholder": "0"},
-                    {"id": "k2_tgt", "label": f"{TGT} माह का लक्ष्य", "short": f"प्रखण्ड — {TGT} लक्ष्य",
-                     "type": "number", "required": True, "placeholder": "0"}]},
-                {"grp": "क.3", "label": "संस्कार परिवार योजना युक्त नगरों की संख्या", "fields": [
-                    {"id": "k3", "label": "योजना युक्त नगरों की संख्या", "short": "नगर",
-                     "type": "number", "required": True, "placeholder": "0"}]},
-            ]},
-
-            # ---------- ख. संस्कार परिवारों का विवरण ----------
-            {"title": "ख. संस्कार परिवारों का विवरण", "items": [
-                {"grp": "ख.1", "label": f"दैनिक संस्कार परिवारों की वर्तमान संख्या तथा {TGT} माह का विस्तार लक्ष्य", "fields": [
-                    {"id": "kh1_cur", "label": "दैनिक परिवार — वर्तमान संख्या", "short": "दैनिक — वर्तमान",
-                     "type": "number", "required": True, "placeholder": "0"},
-                    {"id": "kh1_tgt", "label": f"दैनिक परिवार — {TGT} विस्तार लक्ष्य", "short": f"दैनिक — {TGT} लक्ष्य",
-                     "type": "number", "required": True, "placeholder": "0"}]},
-                {"grp": "ख.2", "label": f"मासिक संस्कार परिवारों की वर्तमान संख्या तथा {TGT} माह का विस्तार लक्ष्य", "fields": [
-                    {"id": "kh2_cur", "label": "मासिक परिवार — वर्तमान संख्या", "short": "मासिक — वर्तमान",
-                     "type": "number", "required": True, "placeholder": "0"},
-                    {"id": "kh2_tgt", "label": f"मासिक परिवार — {TGT} विस्तार लक्ष्य", "short": f"मासिक — {TGT} लक्ष्य",
-                     "type": "number", "required": True, "placeholder": "0"}]},
-            ]},
-
-            # ---------- ग. राष्ट्र रक्षा यज्ञ आयोजन समितियों का गठन ----------
-            {"title": "ग. राष्ट्र रक्षा यज्ञ आयोजन समितियों का गठन", "items": [
-                {"grp": "ग.1", "label": "प्रखण्डों/नगरों में आयोजन समिति के गठन की स्थिति", "fields": [
-                    {"id": "g1_lak", "label": "कितने प्रखण्डों/नगरों में समिति बनाने का लक्ष्य था?", "short": "प्रखण्ड/नगर लक्ष्य",
-                     "type": "number", "required": True, "placeholder": "0"},
-                    {"id": "g1_done", "label": "कितने प्रखण्डों/नगरों की 15 सदस्यीय समिति बन गई?", "short": "15-सदस्यीय बनी",
-                     "type": "number", "required": True, "placeholder": "0"},
-                    {"id": "g1_by", "label": "शेष प्रखण्डों/नगरों की समिति कब तक बन जाएगी?", "short": "शेष कब तक",
-                     "type": "text", "required": True, "placeholder": "जैसे: 15 सितंबर तक", "full": True}]},
-                {"grp": "ग.2", "label": "जिलों में आयोजन समिति के गठन की स्थिति", "fields": [
-                    {"id": "g2_lak", "label": "कितने जिलों में समिति बनाने का लक्ष्य था?", "short": "जिले लक्ष्य",
-                     "type": "number", "required": True, "placeholder": "0"},
-                    {"id": "g2_done", "label": "कितने जिलों की 25 सदस्यीय समिति बन गई?", "short": "25-सदस्यीय बनी",
-                     "type": "number", "required": True, "placeholder": "0"},
-                    {"id": "g2_by", "label": "शेष जिलों की समिति कब तक बनेगी?", "short": "शेष कब तक",
-                     "type": "text", "required": True, "placeholder": "जैसे: 20 सितंबर तक", "full": True}]},
-                {"grp": "ग.3", "label": "51 सदस्यीय यज्ञ आयोजन समिति के गठन की स्थिति", "fields": [
-                    {"id": "g3_formed", "label": "क्या आपके प्रांत की 51 सदस्यीय यज्ञ आयोजन समिति बन गई?", "short": "समिति बन गई?",
-                     "type": "radio", "required": True, "options": ["हाँ", "नहीं"], "full": True},
-                    {"id": "g3_by", "label": "यदि नहीं तो समिति कब तक बन जाएगी?", "short": "नहीं तो कब?",
-                     "type": "text", "required": True, "placeholder": "जैसे: 30 सितंबर तक", "full": True,
-                     "show_if": "g3_formed", "show_if_value": "नहीं"}]},
-            ]},
-
-            # ---------- घ. राष्ट्र रक्षा यज्ञ अनुष्ठान आयोजन कार्यक्रम ----------
-            {"title": "घ. राष्ट्र रक्षा यज्ञ अनुष्ठान आयोजन कार्यक्रम", "items": [
-                {"grp": "घ.1", "label": f"{TGT_MONTH} में राष्ट्र रक्षा यज्ञ आयोजन", "fields": [
-                    {"id": "gh1", "label": "कितने नगरों/प्रखण्डों में राष्ट्र रक्षा यज्ञ सम्पन्न होंगे?", "short": f"यज्ञ स्थल ({TGT})",
-                     "type": "number", "required": True, "placeholder": "0"}]},
-                {"grp": "घ.2", "label": "जिला समितियों द्वारा यज्ञ अनुष्ठान (जिला केन्द्र)", "fields": [
-                    {"id": "gh2", "label": "कितने जिला केन्द्रों पर यज्ञ अनुष्ठान होना तय है?", "short": "जिला केन्द्र",
-                     "type": "number", "required": True, "placeholder": "0"}]},
-                {"grp": "घ.3", "label": "प्रांत स्तरीय यज्ञ अनुष्ठान की तिथि", "fields": [
-                    {"id": "gh3_prov", "label": "किस प्रांत में?", "short": "प्रांत",
-                     "type": "text", "required": True, "placeholder": "प्रांत का नाम"},
-                    {"id": "gh3_month", "label": "किस माह में?", "short": "माह",
-                     "type": "text", "required": True, "placeholder": "जैसे: अक्टूबर"},
-                    {"id": "gh3_when", "label": "कब (तिथि)?", "short": "तिथि",
-                     "type": "text", "required": True, "placeholder": "जैसे: 10 अक्टूबर, 2026"}]},
-            ]},
-
-            # ---------- ड. मासिक परिवार मिलन का विवरण ----------
-            {"title": f"ड. {RPT_MONTH} के मासिक परिवार मिलन का विवरण", "items": [
-                {"grp": "ड.1", "label": "मासिक परिवार मिलन — कुल स्थान", "fields": [
-                    {"id": "d1_exp", "label": "कुल कितने स्थानों पर मिलन अपेक्षित था?", "short": "स्थान — अपेक्षित",
-                     "type": "number", "required": True, "placeholder": "0"},
-                    {"id": "d1_done", "label": "कुल कितने स्थानों पर सम्पन्न हुआ?", "short": "स्थान — सम्पन्न",
-                     "type": "number", "required": True, "placeholder": "0"}]},
-                {"grp": "ड.2", "label": "मिलन में उपस्थिति (व्यक्ति)", "fields": [
-                    {"id": "d2_exp", "label": "कुल अपेक्षित संख्या", "short": "व्यक्ति — अपेक्षित",
-                     "type": "number", "required": True, "placeholder": "0"},
-                    {"id": "d2_pres", "label": "उपस्थित संख्या", "short": "व्यक्ति — उपस्थित",
-                     "type": "number", "required": True, "placeholder": "0"}]},
-                {"grp": "ड.3", "label": "मिलन में उपस्थिति (परिवार)", "fields": [
-                    {"id": "d3_exp", "label": "कुल अपेक्षित परिवार संख्या", "short": "परिवार — अपेक्षित",
-                     "type": "number", "required": True, "placeholder": "0"},
-                    {"id": "d3_pres", "label": "उपस्थित परिवार संख्या", "short": "परिवार — उपस्थित",
-                     "type": "number", "required": True, "placeholder": "0"}]},
-            ]},
+SECTIONS = [
+    # ==================== प्रथम भाग ====================
+    {
+        "part": "प्रथम भाग",
+        "title": "क. परिचयात्मक विवरण",
+        "items": [
+            {
+                "grp": "",
+                "label": "रिपोर्टिंग माह",
+                "fields": [
+                    {"id": "p1_month", "label": "रिपोर्टिंग माह (किस माह का विवरण भेज रहे हैं)",
+                     "short": "रिपोर्ट माह", "type": "select", "options": HINDI_MONTHS,
+                     "default": "__current__", "required": True, "full": True},
+                ],
+            },
+            {
+                "grp": "",
+                "label": "प्रांत का नाम",
+                "fields": [
+                    {"id": "p1_prov", "label": "प्रांत का नाम", "short": "प्रांत",
+                     "type": "select", "options": EXPECTED_PROVINCES + [OTHER_PROV_LABEL],
+                     "required": True, "full": True},
+                    {"id": "p1_prov_other", "label": "अपने प्रांत का नाम लिखें",
+                     "short": "अन्य प्रांत", "type": "text",
+                     "required": True, "placeholder": "प्रांत का नाम...",
+                     "full": True, "show_if": "p1_prov", "show_if_value": OTHER_PROV_LABEL},
+                ],
+            },
+            {
+                "grp": "",
+                "label": "प्रांत अध्यक्ष/प्रमुख का नाम",
+                "fields": [
+                    {"id": "p1_head", "label": "प्रांत अध्यक्ष / प्रमुख का नाम", "short": "अध्यक्ष/प्रमुख",
+                     "type": "text", "required": True,
+                     "placeholder": "श्री / श्रीमती ......................",
+                     "full": True},
+                ],
+            },
         ],
     },
 
-    # ======================= फॉर्म 2: प्रतिभा विकास केंद्र : कार्यवृत्त-2026 =======================
-    "form2": {
-        "title": "प्रतिभा विकास केंद्र : कार्यवृत्त-2026",
-        "tab": "🏅 प्रतिभा विकास केंद्र",
-        "desc": "कृपया अपने प्रांत का प्रतिभा विकास केंद्र कार्यवृत्त भरें। सभी संख्याएँ अंकों में लिखें।",
-        "instruction": "आप इस फॉर्मेट को भरकर प्रत्येक माह के अंत तक भेजने का कष्ट करेंगे।",
-        "thank_you": "धन्यवाद! आपका प्रतिभा विकास केंद्र कार्यवृत्त सफलतापूर्वक दर्ज हो गया। 🙏",
-        "month_field": True,           # प्रत्येक माह भरना है → माह ड्रॉपडाउन रहेगा
-        "prov_dropdown": True,         # प्रांत भी ऊपर ड्रॉपडाउन से (टाइपो रोक)
-        "expected_provinces": PROVINCES,
-        # "योग" फ़ील्ड अपने-आप गिने जाते हैं (auto_sum) — भरने वाले को जोड़ना नहीं पड़ता
-        "excel_quick": [
-            {"id": "pvk_k1_cur", "label": "जिले — वर्तमान"},
-            {"id": "pvk_k1_sum", "label": "जिले — योग"},
-            {"id": "pvk_k3_cur", "label": "नगर — वर्तमान"},
-            {"id": "pvk_kh1_cur", "label": "केंद्र — वर्तमान"},
-            {"id": "pvk_kh2_cur", "label": "छात्र — वर्तमान"},
-        ],
-        "excel_quick_pre": [           # "प्रांत-वार" ब्लॉक के पहले दो कॉलम
-            {"id": "prov", "label": "प्रांत"},
-            {"id": "seva", "label": "सेवाव्रती"},
-        ],
-        "sections": [
-            # ---------- प्रारंभिक जानकारी (सेवाव्रती — प्रांत ऊपर ड्रॉपडाउन से, अध्यक्ष नहीं) ----------
-            {"title": "प्रारंभिक जानकारी", "items": [
-                {"grp": "", "label": "सेवाव्रतियों की वर्तमान संख्या", "fields": [
-                    {"id": "seva", "label": "सेवाव्रतियों की वर्तमान संख्या", "short": "सेवाव्रती",
-                     "type": "number", "required": True, "placeholder": "0"}]},
-            ]},
-
-            # ---------- क. प्रतिभा विकास केंद्र का व्याप ----------
-            {"title": "क. प्रतिभा विकास केंद्र का व्याप", "items": [
-                {"grp": "क.1", "label": "कार्ययुक्त जिलों की वर्तमान संख्या, नवीन लक्ष्य तथा योग", "fields": [
-                    {"id": "pvk_k1_cur", "label": "जिलों की वर्तमान संख्या", "short": "जिले — वर्तमान",
-                     "type": "number", "required": True, "placeholder": "0"},
-                    {"id": "pvk_k1_tgt", "label": "नवीन लक्ष्य (जिलों की संख्या)", "short": "जिले — नवीन लक्ष्य",
-                     "type": "number", "required": True, "placeholder": "0"},
-                    {"id": "pvk_k1_sum", "label": "योग", "short": "जिले — योग",
-                     "type": "number", "required": False, "auto_sum": ["pvk_k1_cur", "pvk_k1_tgt"]}]},
-                {"grp": "क.2", "label": "कार्ययुक्त प्रखण्डों की वर्तमान संख्या, नवीन लक्ष्य तथा योग", "fields": [
-                    {"id": "pvk_k2_cur", "label": "प्रखण्डों की वर्तमान संख्या", "short": "प्रखण्ड — वर्तमान",
-                     "type": "number", "required": True, "placeholder": "0"},
-                    {"id": "pvk_k2_tgt", "label": "नवीन लक्ष्य (प्रखण्डों की संख्या)", "short": "प्रखण्ड — नवीन लक्ष्य",
-                     "type": "number", "required": True, "placeholder": "0"},
-                    {"id": "pvk_k2_sum", "label": "योग", "short": "प्रखण्ड — योग",
-                     "type": "number", "required": False, "auto_sum": ["pvk_k2_cur", "pvk_k2_tgt"]}]},
-                {"grp": "क.3", "label": "कार्ययुक्त नगरों की वर्तमान संख्या, नवीन लक्ष्य तथा योग", "fields": [
-                    {"id": "pvk_k3_cur", "label": "नगरों की वर्तमान संख्या", "short": "नगर — वर्तमान",
-                     "type": "number", "required": True, "placeholder": "0"},
-                    {"id": "pvk_k3_tgt", "label": "नवीन लक्ष्य (नगरों की संख्या)", "short": "नगर — नवीन लक्ष्य",
-                     "type": "number", "required": True, "placeholder": "0"},
-                    {"id": "pvk_k3_sum", "label": "योग", "short": "नगर — योग",
-                     "type": "number", "required": False, "auto_sum": ["pvk_k3_cur", "pvk_k3_tgt"]}]},
-            ]},
-
-            # ---------- ख. प्रतिभा विकास केंद्र का विवरण ----------
-            {"title": "ख. प्रतिभा विकास केंद्र का विवरण", "items": [
-                {"grp": "ख.1", "label": "केंद्रों की वर्तमान संख्या, नवीन लक्ष्य तथा योग", "fields": [
-                    {"id": "pvk_kh1_cur", "label": "केंद्रों की वर्तमान संख्या", "short": "केंद्र — वर्तमान",
-                     "type": "number", "required": True, "placeholder": "0"},
-                    {"id": "pvk_kh1_tgt", "label": "नवीन लक्ष्य (केंद्रों की संख्या)", "short": "केंद्र — नवीन लक्ष्य",
-                     "type": "number", "required": True, "placeholder": "0"},
-                    {"id": "pvk_kh1_sum", "label": "योग", "short": "केंद्र — योग",
-                     "type": "number", "required": False, "auto_sum": ["pvk_kh1_cur", "pvk_kh1_tgt"]}]},
-                {"grp": "ख.2", "label": "छात्रों की वर्तमान संख्या, नवीन लक्ष्य तथा योग", "fields": [
-                    {"id": "pvk_kh2_cur", "label": "छात्रों की वर्तमान संख्या", "short": "छात्र — वर्तमान",
-                     "type": "number", "required": True, "placeholder": "0"},
-                    {"id": "pvk_kh2_tgt", "label": "नवीन लक्ष्य (छात्रों की संख्या)", "short": "छात्र — नवीन लक्ष्य",
-                     "type": "number", "required": True, "placeholder": "0"},
-                    {"id": "pvk_kh2_sum", "label": "योग", "short": "छात्र — योग",
-                     "type": "number", "required": False, "auto_sum": ["pvk_kh2_cur", "pvk_kh2_tgt"]}]},
-                {"grp": "ख.3", "label": "अन्य छात्रों की वर्तमान संख्या, नवीन लक्ष्य तथा योग", "fields": [
-                    {"id": "pvk_kh3_cur", "label": "अन्य छात्रों की वर्तमान संख्या", "short": "अन्य छात्र — वर्तमान",
-                     "type": "number", "required": True, "placeholder": "0"},
-                    {"id": "pvk_kh3_tgt", "label": "नवीन लक्ष्य (अन्य छात्रों की संख्या)", "short": "अन्य छात्र — नवीन लक्ष्य",
-                     "type": "number", "required": True, "placeholder": "0"},
-                    {"id": "pvk_kh3_sum", "label": "योग", "short": "अन्य छात्र — योग",
-                     "type": "number", "required": False, "auto_sum": ["pvk_kh3_cur", "pvk_kh3_tgt"]}]},
-                {"grp": "ख.4", "label": "अभिभावकों की वर्तमान संख्या, नवीन लक्ष्य तथा योग", "fields": [
-                    {"id": "pvk_kh4_cur", "label": "अभिभावकों की वर्तमान संख्या", "short": "अभिभावक — वर्तमान",
-                     "type": "number", "required": True, "placeholder": "0"},
-                    {"id": "pvk_kh4_tgt", "label": "नवीन लक्ष्य (अभिभावकों की संख्या)", "short": "अभिभावक — नवीन लक्ष्य",
-                     "type": "number", "required": True, "placeholder": "0"},
-                    {"id": "pvk_kh4_sum", "label": "योग", "short": "अभिभावक — योग",
-                     "type": "number", "required": False, "auto_sum": ["pvk_kh4_cur", "pvk_kh4_tgt"]}]},
-                # ⚠️ नोट: मूल पत्र में ख.5 व ख.6 समान थे — दूसरा (डुप्लीकेट) प्रश्न हटा दिया गया है,
-                # इसलिए अब ख.5 के बाद सीधे ख.6 = संचालन समिति है।
-                {"grp": "ख.5", "label": "अन्य परिवारों की वर्तमान संख्या, नवीन लक्ष्य तथा योग", "fields": [
-                    {"id": "pvk_kh5_cur", "label": "अन्य परिवारों की वर्तमान संख्या", "short": "अन्य परिवार — वर्तमान",
-                     "type": "number", "required": True, "placeholder": "0"},
-                    {"id": "pvk_kh5_tgt", "label": "नवीन लक्ष्य (अन्य परिवारों की संख्या)", "short": "अन्य परिवार — नवीन लक्ष्य",
-                     "type": "number", "required": True, "placeholder": "0"},
-                    {"id": "pvk_kh5_sum", "label": "योग", "short": "अन्य परिवार — योग",
-                     "type": "number", "required": False, "auto_sum": ["pvk_kh5_cur", "pvk_kh5_tgt"]}]},
-                {"grp": "ख.6", "label": "11 सदस्यीय संचालन समिति की वर्तमान संख्या, नवीन लक्ष्य तथा योग", "fields": [
-                    {"id": "pvk_kh6_cur", "label": "11 सदस्यीय संचालन समिति सदस्य की वर्तमान संख्या", "short": "समिति — वर्तमान",
-                     "type": "number", "required": True, "placeholder": "0"},
-                    {"id": "pvk_kh6_tgt", "label": "नवीन लक्ष्य (संचालन समिति)", "short": "समिति — नवीन लक्ष्य",
-                     "type": "number", "required": True, "placeholder": "0"},
-                    {"id": "pvk_kh6_sum", "label": "योग", "short": "समिति — योग",
-                     "type": "number", "required": False, "auto_sum": ["pvk_kh6_cur", "pvk_kh6_tgt"]}]},
-            ]},
+    {
+        "part": "प्रथम भाग",
+        "title": "ख. कार्य का व्याप एवं विस्तार",
+        "items": [
+            {
+                "grp": "ख.1",
+                "label": "संस्कार परिवार युक्त जिले",
+                "fields": [
+                    {"id": "p1_kha1_cur", "label": "संस्कार परिवार युक्त जिलों की संख्या",
+                     "short": "जिले — वर्तमान", "type": "number", "required": True, "placeholder": "0"},
+                    {"id": "p1_kha1_tgt", "label": "जिलों हेतु आगामी माह का नवीन लक्ष्य",
+                     "short": "जिले — लक्ष्य", "type": "number", "required": True, "placeholder": "0"},
+                ],
+            },
+            {
+                "grp": "ख.2",
+                "label": "संस्कार परिवार युक्त प्रखण्ड",
+                "fields": [
+                    {"id": "p1_kha2_cur", "label": "संस्कार परिवार युक्त प्रखण्डों की संख्या",
+                     "short": "प्रखण्ड — वर्तमान", "type": "number", "required": True, "placeholder": "0"},
+                    {"id": "p1_kha2_tgt", "label": "प्रखण्डों हेतु आगामी माह का नवीन लक्ष्य",
+                     "short": "प्रखण्ड — लक्ष्य", "type": "number", "required": True, "placeholder": "0"},
+                ],
+            },
+            {
+                "grp": "ख.3",
+                "label": "संस्कार परिवार युक्त नगर",
+                "fields": [
+                    {"id": "p1_kha3_cur", "label": "संस्कार परिवार युक्त नगरों की संख्या",
+                     "short": "नगर — वर्तमान", "type": "number", "required": True, "placeholder": "0"},
+                    {"id": "p1_kha3_tgt", "label": "नगरों हेतु आगामी माह का नवीन लक्ष्य",
+                     "short": "नगर — लक्ष्य", "type": "number", "required": True, "placeholder": "0"},
+                ],
+            },
+            {
+                "grp": "ख.4",
+                "label": "संस्कार परिवार युक्त ग्राम",
+                "fields": [
+                    {"id": "p1_kha4_cur", "label": "संस्कार परिवार युक्त ग्रामों की संख्या",
+                     "short": "ग्राम — वर्तमान", "type": "number", "required": True, "placeholder": "0"},
+                    {"id": "p1_kha4_tgt", "label": "ग्रामों हेतु आगामी माह का नवीन लक्ष्य",
+                     "short": "ग्राम — लक्ष्य", "type": "number", "required": True, "placeholder": "0"},
+                ],
+            },
         ],
     },
-}
+
+    {
+        "part": "प्रथम भाग",
+        "title": "ग. संस्कार परिवार योजना विवरण",
+        "items": [
+            {
+                "grp": "ग.1",
+                "label": "दैनिक संस्कार परिवार विवरण",
+                "fields": [
+                    {"id": "p1_g1_cur", "label": "दैनिक परिवार — वर्तमान संख्या",
+                     "short": "दैनिक — वर्तमान", "type": "number", "required": True, "placeholder": "0"},
+                    {"id": "p1_g1_tgt", "label": "दैनिक परिवार — आगामी नवीन लक्ष्य",
+                     "short": "दैनिक — लक्ष्य", "type": "number", "required": True, "placeholder": "0"},
+                    {"id": "p1_g1_tot", "label": "दैनिक परिवार — योग (स्वतः)",
+                     "short": "दैनिक — योग", "type": "number", "required": False,
+                     "calc": ["p1_g1_cur", "p1_g1_tgt"], "readonly": True, "placeholder": "स्वतः"},
+                ],
+            },
+            {
+                "grp": "ग.2",
+                "label": "मासिक संस्कार परिवार विवरण",
+                "fields": [
+                    {"id": "p1_g2_cur", "label": "मासिक परिवार — वर्तमान संख्या",
+                     "short": "मासिक — वर्तमान", "type": "number", "required": True, "placeholder": "0"},
+                    {"id": "p1_g2_tgt", "label": "मासिक परिवार — आगामी नवीन लक्ष्य",
+                     "short": "मासिक — लक्ष्य", "type": "number", "required": True, "placeholder": "0"},
+                    {"id": "p1_g2_tot", "label": "मासिक परिवार — योग (स्वतः)",
+                     "short": "मासिक — योग", "type": "number", "required": False,
+                     "calc": ["p1_g2_cur", "p1_g2_tgt"], "readonly": True, "placeholder": "स्वतः"},
+                ],
+            },
+        ],
+    },
+
+    {
+        "part": "प्रथम भाग",
+        "title": "घ. राष्ट्र रक्षा यज्ञ आयोजन समितियों के गठन की स्थिति",
+        "items": [
+            {
+                "grp": "घ.1",
+                "label": "प्रखण्डों में समिति गठन की स्थिति",
+                "fields": [
+                    {"id": "p1_gh1_lak", "label": "कितने प्रखण्डों में गठन का लक्ष्य था?",
+                     "short": "प्रखण्ड लक्ष्य", "type": "number", "required": True, "placeholder": "0"},
+                    {"id": "p1_gh1_done", "label": "कितने प्रखण्डों में गठन हुआ?",
+                     "short": "प्रखण्ड गठित", "type": "number", "required": True, "placeholder": "0"},
+                    {"id": "p1_gh1_by", "label": "शेष प्रखण्डों में कब तक गठन होगा?",
+                     "short": "शेष कब तक", "type": "text", "required": True,
+                     "placeholder": "जैसे: 15 अक्टूबर तक", "full": True},
+                ],
+            },
+            {
+                "grp": "घ.2",
+                "label": "नगरों में समिति गठन की स्थिति",
+                "fields": [
+                    {"id": "p1_gh2_lak", "label": "कितने नगरों में गठन का लक्ष्य था?",
+                     "short": "नगर लक्ष्य", "type": "number", "required": True, "placeholder": "0"},
+                    {"id": "p1_gh2_done", "label": "कितने नगरों में गठन हुआ?",
+                     "short": "नगर गठित", "type": "number", "required": True, "placeholder": "0"},
+                    {"id": "p1_gh2_by", "label": "शेष नगरों में गठन कब तक होगा?",
+                     "short": "शेष कब तक", "type": "text", "required": True,
+                     "placeholder": "जैसे: 15 अक्टूबर तक", "full": True},
+                ],
+            },
+            {
+                "grp": "घ.3",
+                "label": "जिला समिति गठन की स्थिति",
+                "fields": [
+                    {"id": "p1_gh3_lak", "label": "कितने जिलों में गठन का लक्ष्य था?",
+                     "short": "जिले लक्ष्य", "type": "number", "required": True, "placeholder": "0"},
+                    {"id": "p1_gh3_done", "label": "कितने जिलों की समिति गठित हुई?",
+                     "short": "जिले गठित", "type": "number", "required": True, "placeholder": "0"},
+                    {"id": "p1_gh3_by", "label": "शेष जिलों की समिति कब तक गठित होगी?",
+                     "short": "शेष कब तक", "type": "text", "required": True,
+                     "placeholder": "जैसे: 20 अक्टूबर तक", "full": True},
+                ],
+            },
+            {
+                "grp": "घ.4",
+                "label": "51 सदस्यीय प्रांत आयोजन समिति",
+                "fields": [
+                    {"id": "p1_gh4_formed", "label": "क्या 51 सदस्यीय प्रांत आयोजन समिति का गठन हुआ?",
+                     "short": "समिति गठित?", "type": "radio", "required": True,
+                     "options": ["हाँ", "नहीं"], "full": True},
+                    {"id": "p1_gh4_by", "label": "यदि नहीं, तो समिति कब तक गठित होगी?",
+                     "short": "नहीं तो कब?", "type": "text", "required": True,
+                     "placeholder": "जैसे: 30 अक्टूबर तक", "full": True,
+                     "show_if": "p1_gh4_formed", "show_if_value": "नहीं"},
+                ],
+            },
+        ],
+    },
+
+    {
+        "part": "प्रथम भाग",
+        "title": "ड. राष्ट्र रक्षा यज्ञ अनुष्ठान — लक्ष्य, वर्तमान स्थिति एवं शेष",
+        "items": [
+            {
+                "grp": "ड.1",
+                "label": "यज्ञ अनुष्ठान का कुल लक्ष्य",
+                "fields": [
+                    {"id": "p1_d1_tgt", "label": "विभिन्न स्तर की समितियों द्वारा यज्ञ अनुष्ठान का कुल लक्ष्य",
+                     "short": "यज्ञ — कुल लक्ष्य", "type": "number", "required": True, "placeholder": "0"},
+                ],
+            },
+            {
+                "grp": "ड.2",
+                "label": "अब तक सम्पन्न यज्ञ अनुष्ठान",
+                "fields": [
+                    {"id": "p1_d2_done", "label": "अब तक सम्पन्न यज्ञ अनुष्ठान संख्या",
+                     "short": "यज्ञ — सम्पन्न", "type": "number", "required": True, "placeholder": "0"},
+                ],
+            },
+        ],
+    },
+
+    # ==================== द्वितीय भाग ====================
+    {
+        "part": "द्वितीय भाग",
+        "title": "क. परिचयात्मक विवरण",
+        "items": [
+            {
+                "grp": "",
+                "label": "प्रांत संयोजक",
+                "fields": [
+                    {"id": "p2_coord", "label": "प्रांत संयोजक", "short": "संयोजक",
+                     "type": "text", "required": True,
+                     "placeholder": "श्री / श्रीमती ......................",
+                     "full": True},
+                ],
+            },
+            {
+                "grp": "",
+                "label": "सेवाव्रती संख्या",
+                "fields": [
+                    {"id": "p2_seva", "label": "प्रांत में कुल सेवाव्रती संख्या (प्रांत संयोजक तथा वरिष्ठ कार्यकर्ता सहित)",
+                     "short": "सेवाव्रती संख्या", "type": "number", "required": True,
+                     "placeholder": "0", "full": True},
+                ],
+            },
+        ],
+    },
+
+    {
+        "part": "द्वितीय भाग",
+        "title": "ख. प्रतिभा विकास केन्द्र का व्याप",
+        "items": [
+            {
+                "grp": "ख.1",
+                "label": "कार्ययुक्त जिले — वर्तमान संख्या, नवीन लक्ष्य एवं योग",
+                "fields": [
+                    {"id": "p2_kh1_cur", "label": "कार्ययुक्त जिले — वर्तमान संख्या",
+                     "short": "जिले — वर्तमान", "type": "number", "required": True, "placeholder": "0"},
+                    {"id": "p2_kh1_tgt", "label": "कार्ययुक्त जिले — नवीन लक्ष्य",
+                     "short": "जिले — लक्ष्य", "type": "number", "required": True, "placeholder": "0"},
+                    {"id": "p2_kh1_tot", "label": "कार्ययुक्त जिले — योग (स्वतः)",
+                     "short": "जिले — योग", "type": "number", "required": False,
+                     "calc": ["p2_kh1_cur", "p2_kh1_tgt"], "readonly": True, "placeholder": "स्वतः"},
+                ],
+            },
+            {
+                "grp": "ख.2",
+                "label": "कार्ययुक्त प्रखण्ड — वर्तमान संख्या, नवीन लक्ष्य एवं योग",
+                "fields": [
+                    {"id": "p2_kh2_cur", "label": "कार्ययुक्त प्रखण्ड — वर्तमान संख्या",
+                     "short": "प्रखण्ड — वर्तमान", "type": "number", "required": True, "placeholder": "0"},
+                    {"id": "p2_kh2_tgt", "label": "कार्ययुक्त प्रखण्ड — नवीन लक्ष्य",
+                     "short": "प्रखण्ड — लक्ष्य", "type": "number", "required": True, "placeholder": "0"},
+                    {"id": "p2_kh2_tot", "label": "कार्ययुक्त प्रखण्ड — योग (स्वतः)",
+                     "short": "प्रखण्ड — योग", "type": "number", "required": False,
+                     "calc": ["p2_kh2_cur", "p2_kh2_tgt"], "readonly": True, "placeholder": "स्वतः"},
+                ],
+            },
+            {
+                "grp": "ख.3",
+                "label": "कार्ययुक्त नगर — वर्तमान संख्या, नवीन लक्ष्य एवं योग",
+                "fields": [
+                    {"id": "p2_kh3_cur", "label": "कार्ययुक्त नगर — वर्तमान संख्या",
+                     "short": "नगर — वर्तमान", "type": "number", "required": True, "placeholder": "0"},
+                    {"id": "p2_kh3_tgt", "label": "कार्ययुक्त नगर — नवीन लक्ष्य",
+                     "short": "नगर — लक्ष्य", "type": "number", "required": True, "placeholder": "0"},
+                    {"id": "p2_kh3_tot", "label": "कार्ययुक्त नगर — योग (स्वतः)",
+                     "short": "नगर — योग", "type": "number", "required": False,
+                     "calc": ["p2_kh3_cur", "p2_kh3_tgt"], "readonly": True, "placeholder": "स्वतः"},
+                ],
+            },
+            {
+                "grp": "ख.4",
+                "label": "कार्ययुक्त ग्राम — वर्तमान संख्या, नवीन लक्ष्य एवं योग",
+                "fields": [
+                    {"id": "p2_kh4_cur", "label": "कार्ययुक्त ग्राम — वर्तमान संख्या",
+                     "short": "ग्राम — वर्तमान", "type": "number", "required": True, "placeholder": "0"},
+                    {"id": "p2_kh4_tgt", "label": "कार्ययुक्त ग्राम — नवीन लक्ष्य",
+                     "short": "ग्राम — लक्ष्य", "type": "number", "required": True, "placeholder": "0"},
+                    {"id": "p2_kh4_tot", "label": "कार्ययुक्त ग्राम — योग (स्वतः)",
+                     "short": "ग्राम — योग", "type": "number", "required": False,
+                     "calc": ["p2_kh4_cur", "p2_kh4_tgt"], "readonly": True, "placeholder": "स्वतः"},
+                ],
+            },
+        ],
+    },
+
+    {
+        "part": "द्वितीय भाग",
+        "title": "ग. प्रतिभा विकास केन्द्र का संख्यात्मक विवरण",
+        "items": [
+            {
+                "grp": "ग.1",
+                "label": "केन्द्र की वर्तमान संख्या, नवीन लक्ष्य एवं योग",
+                "fields": [
+                    {"id": "p2_g1_cur", "label": "केन्द्र — वर्तमान संख्या",
+                     "short": "केन्द्र — वर्तमान", "type": "number", "required": True, "placeholder": "0"},
+                    {"id": "p2_g1_tgt", "label": "केन्द्र — नवीन लक्ष्य",
+                     "short": "केन्द्र — लक्ष्य", "type": "number", "required": True, "placeholder": "0"},
+                    {"id": "p2_g1_tot", "label": "केन्द्र — योग (स्वतः)",
+                     "short": "केन्द्र — योग", "type": "number", "required": False,
+                     "calc": ["p2_g1_cur", "p2_g1_tgt"], "readonly": True, "placeholder": "स्वतः"},
+                ],
+            },
+            {
+                "grp": "ग.2",
+                "label": "छात्रों की वर्तमान संख्या, नवीन लक्ष्य एवं योग",
+                "fields": [
+                    {"id": "p2_g2_cur", "label": "छात्र — वर्तमान संख्या",
+                     "short": "छात्र — वर्तमान", "type": "number", "required": True, "placeholder": "0"},
+                    {"id": "p2_g2_tgt", "label": "छात्र — नवीन लक्ष्य",
+                     "short": "छात्र — लक्ष्य", "type": "number", "required": True, "placeholder": "0"},
+                    {"id": "p2_g2_tot", "label": "छात्र — योग (स्वतः)",
+                     "short": "छात्र — योग", "type": "number", "required": False,
+                     "calc": ["p2_g2_cur", "p2_g2_tgt"], "readonly": True, "placeholder": "स्वतः"},
+                ],
+            },
+            {
+                "grp": "ग.3",
+                "label": "अन्य छात्रों की वर्तमान संख्या, नवीन लक्ष्य एवं योग",
+                "fields": [
+                    {"id": "p2_g3_cur", "label": "अन्य छात्र — वर्तमान संख्या",
+                     "short": "अन्य छात्र — वर्तमान", "type": "number", "required": True, "placeholder": "0"},
+                    {"id": "p2_g3_tgt", "label": "अन्य छात्र — नवीन लक्ष्य",
+                     "short": "अन्य छात्र — लक्ष्य", "type": "number", "required": True, "placeholder": "0"},
+                    {"id": "p2_g3_tot", "label": "अन्य छात्र — योग (स्वतः)",
+                     "short": "अन्य छात्र — योग", "type": "number", "required": False,
+                     "calc": ["p2_g3_cur", "p2_g3_tgt"], "readonly": True, "placeholder": "स्वतः"},
+                ],
+            },
+            {
+                "grp": "ग.4",
+                "label": "अभिभावकों की वर्तमान संख्या, नवीन लक्ष्य एवं योग",
+                "fields": [
+                    {"id": "p2_g4_cur", "label": "अभिभावक — वर्तमान संख्या",
+                     "short": "अभिभावक — वर्तमान", "type": "number", "required": True, "placeholder": "0"},
+                    {"id": "p2_g4_tgt", "label": "अभिभावक — नवीन लक्ष्य",
+                     "short": "अभिभावक — लक्ष्य", "type": "number", "required": True, "placeholder": "0"},
+                    {"id": "p2_g4_tot", "label": "अभिभावक — योग (स्वतः)",
+                     "short": "अभिभावक — योग", "type": "number", "required": False,
+                     "calc": ["p2_g4_cur", "p2_g4_tgt"], "readonly": True, "placeholder": "स्वतः"},
+                ],
+            },
+            {
+                "grp": "ग.5",
+                "label": "अन्य परिवारों की वर्तमान संख्या, नवीन लक्ष्य एवं योग",
+                "fields": [
+                    {"id": "p2_g5_cur", "label": "अन्य परिवार — वर्तमान संख्या",
+                     "short": "अन्य परिवार — वर्तमान", "type": "number", "required": True, "placeholder": "0"},
+                    {"id": "p2_g5_tgt", "label": "अन्य परिवार — नवीन लक्ष्य",
+                     "short": "अन्य परिवार — लक्ष्य", "type": "number", "required": True, "placeholder": "0"},
+                    {"id": "p2_g5_tot", "label": "अन्य परिवार — योग (स्वतः)",
+                     "short": "अन्य परिवार — योग", "type": "number", "required": False,
+                     "calc": ["p2_g5_cur", "p2_g5_tgt"], "readonly": True, "placeholder": "स्वतः"},
+                ],
+            },
+            {
+                "grp": "ग.6",
+                "label": "11 सदस्यीय केन्द्र संचालन समिति गठन की वर्तमान स्थिति",
+                "fields": [
+                    {"id": "p2_g6_cur", "label": "वर्तमान समिति संख्या",
+                     "short": "समिति — वर्तमान", "type": "number", "required": True, "placeholder": "0"},
+                    {"id": "p2_g6_by", "label": "शेष समितियों का गठन कब तक होगा?",
+                     "short": "शेष कब तक", "type": "text", "required": True,
+                     "placeholder": "जैसे: 15 अक्टूबर तक", "full": True},
+                ],
+            },
+        ],
+    },
+
+    {
+        "part": "द्वितीय भाग",
+        "title": "घ. मासिक परिवार मिलन का संख्यात्मक विवरण",
+        "items": [
+            {
+                "grp": "घ.1",
+                "label": "मासिक परिवार मिलन",
+                "fields": [
+                    {"id": "p2_d1_exp", "label": "मिलन — कुल अपेक्षित संख्या",
+                     "short": "मिलन — अपेक्षित", "type": "number", "required": True, "placeholder": "0"},
+                    {"id": "p2_d1_done", "label": "सम्पन्न केन्द्रों की संख्या",
+                     "short": "मिलन — सम्पन्न", "type": "number", "required": True, "placeholder": "0"},
+                ],
+            },
+            {
+                "grp": "घ.2",
+                "label": "छात्र उपस्थिति विवरण",
+                "fields": [
+                    {"id": "p2_d2_stu", "label": "उपस्थित छात्र संख्या",
+                     "short": "छात्र उपस्थित", "type": "number", "required": True, "placeholder": "0"},
+                    {"id": "p2_d2_stu_tgt", "label": "छात्र — आगामी माह का लक्ष्य",
+                     "short": "छात्र — लक्ष्य", "type": "number", "required": True, "placeholder": "0"},
+                    {"id": "p2_d2_ostu", "label": "उपस्थित अन्य छात्र संख्या",
+                     "short": "अन्य छात्र उपस्थित", "type": "number", "required": True, "placeholder": "0"},
+                    {"id": "p2_d2_ostu_tgt", "label": "अन्य छात्र — आगामी माह का लक्ष्य",
+                     "short": "अन्य छात्र — लक्ष्य", "type": "number", "required": True, "placeholder": "0"},
+                ],
+            },
+            {
+                "grp": "घ.3",
+                "label": "अभिभावक एवं अन्य परिवार उपस्थिति विवरण",
+                "fields": [
+                    {"id": "p2_d3_par", "label": "उपस्थित अभिभावक संख्या",
+                     "short": "अभिभावक उपस्थित", "type": "number", "required": True, "placeholder": "0"},
+                    {"id": "p2_d3_par_tgt", "label": "अभिभावक — आगामी माह का लक्ष्य",
+                     "short": "अभिभावक — लक्ष्य", "type": "number", "required": True, "placeholder": "0"},
+                    {"id": "p2_d3_ofam", "label": "उपस्थित अन्य परिवारों की संख्या",
+                     "short": "अन्य परिवार उपस्थित", "type": "number", "required": True, "placeholder": "0"},
+                    {"id": "p2_d3_ofam_tgt", "label": "अन्य परिवार — आगामी माह का लक्ष्य",
+                     "short": "अन्य परिवार — लक्ष्य", "type": "number", "required": True, "placeholder": "0"},
+                    {"id": "p2_d3_mem", "label": "उपस्थित समिति सदस्य संख्या",
+                     "short": "समिति उपस्थित", "type": "number", "required": True, "placeholder": "0"},
+                    {"id": "p2_d3_mem_tgt", "label": "समिति सदस्य — आगामी माह का लक्ष्य",
+                     "short": "समिति — लक्ष्य", "type": "number", "required": True, "placeholder": "0"},
+                ],
+            },
+        ],
+    },
+
+    {
+        "part": "द्वितीय भाग",
+        "title": "ड. राष्ट्र रक्षा यज्ञ अनुष्ठान संबंधी विवरण",
+        "items": [
+            {
+                "grp": "ड.1",
+                "label": "केन्द्रों द्वारा यज्ञ अनुष्ठान आयोजन का लक्ष्य",
+                "fields": [
+                    {"id": "p2_e1", "label": "प्रतिभा विकास केन्द्रों द्वारा राष्ट्र रक्षा यज्ञ अनुष्ठान आयोजन का लक्ष्य",
+                     "short": "केन्द्र यज्ञ लक्ष्य", "type": "number", "required": True, "placeholder": "0"},
+                ],
+            },
+            {
+                "grp": "ड.2",
+                "label": "अन्य ग्रामों/बस्तियों में यज्ञ अनुष्ठान आयोजन का लक्ष्य",
+                "fields": [
+                    {"id": "p2_e2", "label": "केन्द्र के सहयोग से अन्य ग्रामों/बस्तियों में यज्ञ अनुष्ठान आयोजन का लक्ष्य",
+                     "short": "अन्य ग्राम यज्ञ लक्ष्य", "type": "number", "required": True, "placeholder": "0"},
+                ],
+            },
+        ],
+    },
+]
 
 # ============ एडमिन सेटिंग्स ============
-ADMIN_PASSWORD = "admin123"  # असली पासवर्ड Render → Environment में रखें (यह सिर्फ़ फ़ॉलबैक है)
+ADMIN_PASSWORD = "admin123"  # बदलना न भूलें! (उत्पादन में परिवेश-चर ADMIN_PASSWORD का उपयोग होगा)

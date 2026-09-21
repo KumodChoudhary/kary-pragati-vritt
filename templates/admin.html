@@ -21,13 +21,13 @@
       <div class="topbar-actions">
         <span class="live-dot" id="liveDot"></span>
         <span id="lastUpdate" class="last-update">—</span>
-        <a href="{{ url_for('form_page', survey=survey_key) }}" class="btn-ghost" target="_blank">👁 फॉर्म देखें</a>
-        <a href="{{ export_url }}" class="btn-green">⬇ Excel डाउनलोड</a>
+        <a href="{{ url_for('form_page') }}" class="btn-ghost" target="_blank">👁 फॉर्म देखें</a>
+        <a href="{{ export_url }}" class="btn-green">⬇ Excel</a>
+        <a href="{{ pdf1_url }}" class="btn-red">📄 PDF-1</a>
+        <a href="{{ pdf2_url }}" class="btn-red">📄 PDF-2</a>
         <form method="POST" action="{{ url_for('admin_clear') }}" class="inline-form"
-              onsubmit="return confirm('इसी फॉर्म ({{ title }}) का सारा डेटा साफ़ हो जाएगा। पक्का?');">
-          <input type="hidden" name="survey" value="{{ survey_key }}">
-          {% if url_key %}<input type="hidden" name="key" value="{{ url_key }}">{% endif %}
-          <button class="btn-ghost btn-danger">🗑 इस फॉर्म का डेटा साफ़ करें</button>
+              onsubmit="return confirm('क्या आप सारा डेटा साफ़ करना चाहते हैं? यह क्रिया वापस नहीं हो सकती।');">
+          <button class="btn-ghost btn-danger">🗑 साफ़ करें</button>
         </form>
         <form method="POST" action="{{ url_for('admin_logout') }}" class="inline-form">
           <button class="btn-ghost">लॉगआउट</button>
@@ -37,47 +37,19 @@
   </header>
 
   <main class="container">
-    <!-- फॉर्म टैब -->
-    <div class="tabs">
-      {% for k, s in surveys.items() %}
-      <a class="tab {% if k == survey_key %}active{% endif %}"
-         href="{{ url_for('admin', survey=k, key=url_key) if url_key else url_for('admin', survey=k) }}">
-        {{ s.get('tab', s.title) }}
-      </a>
-      {% endfor %}
-    </div>
-
-    <!-- शेयर लिंक (इसी फॉर्म का) -->
+    <!-- शेयर लिंक -->
     <div class="card share-card">
-      <span class="share-label">🔗 शेयर लिंक — {{ title }}:</span>
+      <span class="share-label">🔗 शेयर लिंक (किसी को भी भेजें — ईमेल की ज़रूरत नहीं):</span>
       <div class="share-row">
-        <input type="text" id="shareUrl" readonly value="{{ url_for('form_page', survey=survey_key, _external=True) }}">
+        <input type="text" id="shareUrl" readonly value="{{ url_for('form_page', _external=True) }}">
         <button class="btn-primary" onclick="copyLink()">कॉपी करें</button>
       </div>
     </div>
 
-    {% if cfg.get('month_field') %}
-    <!-- माह-फ़िल्टर -->
-    <div class="card month-bar">
-      <span class="month-label">🗓 रिपोर्टिंग माह:</span>
-      <form method="GET" action="{{ url_for('admin') }}" class="month-form">
-        <input type="hidden" name="survey" value="{{ survey_key }}">
-        {% if url_key %}<input type="hidden" name="key" value="{{ url_key }}">{% endif %}
-        <select name="month" onchange="this.form.submit()">
-          <option value="all" {% if month == 'all' %}selected{% endif %}>सभी माह</option>
-          {% for m in months %}
-          <option value="{{ m }}" {% if month == m %}selected{% endif %}>{{ m }}</option>
-          {% endfor %}
-        </select>
-      </form>
-      <span class="month-hint">⬇ Excel भी इसी चयन का बनेगा</span>
-    </div>
-    {% endif %}
-
     <!-- उत्तर-सूची ट्रैकर -->
     <div class="card tracker-card" id="trackerCard">
       <div class="tracker-head">
-        <h2>📌 उत्तर-सूची — किस प्रांत ने भरा? {% if cfg.get('month_field') and month != 'all' %}<span class="tracker-month">({{ month }})</span>{% endif %}</h2>
+        <h2>📌 उत्तर-सूची — किस प्रांत ने भरा?</h2>
         <span class="tracker-count" id="trkCount"></span>
       </div>
       <div class="tracker-progress" id="trkBar"></div>
@@ -95,7 +67,7 @@
     <!-- इन्फोग्राफिक्स -->
     <div class="chart-grid" id="chartGrid"></div>
 
-    <!-- तालिका -->
+    <!-- टेबल -->
     <div class="card">
       <div class="table-head">
         <h2>📋 सभी उत्तर (तालिका)</h2>
@@ -109,18 +81,20 @@
           <thead id="tableHead"></thead>
           <tbody id="tableBody"></tbody>
         </table>
-        <div id="emptyState" class="empty-state" style="display:none">इस चयन में अभी कोई उत्तर नहीं आया। फॉर्म लिंक साझा करें! 🚀</div>
+        <div id="emptyState" class="empty-state" style="display:none">अभी तक कोई उत्तर नहीं आया। फॉर्म लिंक साझा करें! 🚀</div>
       </div>
     </div>
   </main>
 
-  <footer class="admin-footer">⚡ हर 10 सेकंड में स्वतः अपडेट · Excel फ़ाइल हर बार ताज़ा डेटा के साथ बनती है</footer>
+  <footer class="admin-footer">⚡ हर 10 सेकंड में स्वतः अपडेट · Excel/PDF हर बार ताज़ा डेटा के साथ बनते हैं</footer>
 
 <script>
 /* ================= डेटा + ऑटो-रिफ्रेश ================= */
 let DATA = null;
 const COLORS = ["#1D4ED8", "#059669", "#D97706", "#7C3AED", "#DC2626", "#0EA5E9", "#DB2777", "#14B8A6"];
-const API_URL = {{ data_url | tojson }};
+// कुकी-मुक्त कुंजी — URL से पढ़ो और हर अनुरोध में भेजो
+const ADMIN_KEY = new URLSearchParams(location.search).get('key') || '';
+const API_URL = "{{ url_for('admin_api_data') }}" + (ADMIN_KEY ? "?key=" + encodeURIComponent(ADMIN_KEY) : "");
 
 // नाम-मोड: डिफ़ॉल्ट संक्षिप्त (localStorage में याद रहता है)
 let USE_SHORT = localStorage.getItem('kpv_labels') !== 'full';
@@ -137,7 +111,11 @@ function fLabel(f){
   return f.grp ? (f.grp + " — " + base) : base;
 }
 function fTitle(f){
-  return (f.grp ? (f.grp + " — ") : "") + f.label;
+  return (f.part ? (f.part + " · ") : "") + (f.grp ? (f.grp + " — ") : "") + f.label;
+}
+function pTag(f){
+  if (!f.part_short) return "";
+  return `<span class="ptag p${f.part_short}" title="${esc(f.part)}">भाग-${f.part_short}</span>`;
 }
 function esc(s){
   return String(s ?? "").replace(/[&<>"']/g, c => (
@@ -145,6 +123,13 @@ function esc(s){
   ));
 }
 function num(v){ const n = parseFloat(v); return isNaN(n) ? 0 : n; }
+function provName(r){
+  let p = (r.data['p1_prov'] || "").trim();
+  if (p === (DATA.other_prov_label || "") && (r.data['p1_prov_other'] || "").trim()) {
+    p = r.data['p1_prov_other'].trim();
+  }
+  return p || ("उत्तर #" + r.id);
+}
 function shortDate(t){
   if (!t) return "—";
   return (t.slice(8,10) + "/" + t.slice(5,7) + " " + t.slice(11,16));
@@ -202,7 +187,7 @@ function renderTracker(){
       }
     });
   } else {
-    count.textContent = "सूची सेट नहीं — survey_config.py में expected_provinces भरें";
+    count.textContent = "सूची सेट नहीं — survey_config.py में EXPECTED_PROVINCES भरें";
     bar.innerHTML = "";
   }
   (t.extra || []).forEach(x => {
@@ -246,7 +231,7 @@ function sumBars(fields, sums){
 
 function perResponseBars(field, rows, provField){
   const items = rows.map(r => ({
-    label: (r.data[provField] || "").trim() || ("उत्तर #" + r.id),
+    label: provName(r),
     value: num(r.data[field.id])
   })).filter(i => i.value > 0).sort((a,b) => b.value - a.value);
   if (!items.length) return `<div class="chart-empty">अभी कोई उत्तर नहीं</div>`;
@@ -272,7 +257,7 @@ function textList(field, rows, provField){
     const v = (r.data[field.id] || "").trim();
     if (!v) continue;
     if (count++ >= 10) { html += `<li class="chart-more">… और ${rows.filter(x=>(x.data[field.id]||"").trim()).length - 10} उत्तर</li>`; break; }
-    const prov = (r.data[provField] || "").trim() || ("उत्तर #" + r.id);
+    const prov = provName(r);
     html += `<li><b>${esc(prov)}:</b> ${esc(v)}</li>`;
   }
   if (!count) return `<div class="chart-empty">अभी कोई उत्तर नहीं</div>`;
@@ -287,25 +272,33 @@ function renderCharts(){
   const grid = document.getElementById('chartGrid');
   let html = makeCard("📅 पिछले 14 दिनों में उत्तर", daysChartSVG(DATA.series));
 
+  // भाग + खंड के अनुसार समूह (क्रम सुरक्षित)
   const grpOrder = [], grpMap = {};
   DATA.fields.forEach(f => {
     if (!f.grp) return;
-    if (!grpMap[f.grp]) { grpMap[f.grp] = { label: f.item_label, fields: [] }; grpOrder.push(f.grp); }
-    grpMap[f.grp].fields.push(f);
+    const key = f.part + "||" + f.grp;
+    if (!grpMap[key]) { grpMap[key] = { part: f.part, label: f.item_label, fields: [] }; grpOrder.push(key); }
+    grpMap[key].fields.push(f);
   });
 
-  const provField = DATA.fields.find(f => f.id === 'prov')?.id || 'prov';
+  const provField = DATA.fields.find(f => f.id === 'p1_prov')?.id || 'p1_prov';
 
-  grpOrder.forEach(g => {
-    const grp = grpMap[g];
-    const numF = grp.fields.filter(f => f.type === 'number');
-    const txtF = grp.fields.filter(f => f.type !== 'number');
-    let inner = "";
-    if (numF.length >= 2) inner += sumBars(numF, DATA.field_sums) + (txtF.length ? `<div class="chart-divider"></div>` : "");
-    else if (numF.length === 1) inner += perResponseBars(numF[0], DATA.rows, provField) + (txtF.length ? `<div class="chart-divider"></div>` : "");
-    txtF.forEach(f => { inner += textList(f, DATA.rows, provField); });
-    if (!inner.trim()) return;
-    html += makeCard(`${g} · ${grp.label}`, inner);
+  (DATA.parts || []).forEach(p => {
+    const keys = grpOrder.filter(k => grpMap[k].part === p.name);
+    if (!keys.length) return;
+    html += `<div class="chart-part-title">📖 ${esc(p.name)}${p.subtitle ? " — " + esc(p.subtitle) : ""}</div>`;
+    keys.forEach(k => {
+      const grp = grpMap[k];
+      const g = k.split("||")[1];
+      const numF = grp.fields.filter(f => f.type === 'number');
+      const txtF = grp.fields.filter(f => f.type !== 'number');
+      let inner = "";
+      if (numF.length >= 2) inner += sumBars(numF, DATA.field_sums) + (txtF.length ? `<div class="chart-divider"></div>` : "");
+      else if (numF.length === 1) inner += perResponseBars(numF[0], DATA.rows, provField) + (txtF.length ? `<div class="chart-divider"></div>` : "");
+      txtF.forEach(f => { inner += textList(f, DATA.rows, provField); });
+      if (!inner.trim()) return;
+      html += makeCard(`${g} · ${grp.label}`, inner);
+    });
   });
 
   grid.innerHTML = html;
@@ -319,15 +312,13 @@ function renderTable(){
   const q = (document.getElementById('searchBox').value || "").toLowerCase();
 
   let h = `<tr><th class="th-idx">#</th><th class="th-time">समय</th>`;
-  if (DATA.show_month_col) h += `<th>माह</th>`;
-  DATA.fields.forEach(f => h += `<th title="${esc(fTitle(f))}">${esc(fLabel(f))}</th>`);
+  DATA.fields.forEach(f => h += `<th title="${esc(fTitle(f))}">${pTag(f)}${esc(fLabel(f))}</th>`);
   h += `</tr>`;
   head.innerHTML = h;
 
   const rows = DATA.rows.filter(r => {
     if (!q) return true;
     return JSON.stringify(r.data).toLowerCase().includes(q) ||
-           JSON.stringify(r.report_month || "").toLowerCase().includes(q) ||
            r.id.toString().includes(q) || r.created_at.toLowerCase().includes(q);
   });
 
@@ -337,7 +328,6 @@ function renderTable(){
   let t = "";
   rows.forEach((r, i) => {
     t += `<tr><td class="dim">${DATA.rows.length - i}</td><td class="mono">${esc(r.created_at.replace("T", " "))}</td>`;
-    if (DATA.show_month_col) t += `<td class="dim">${esc(r.report_month || "—")}</td>`;
     DATA.fields.forEach(f => {
       const v = (r.data[f.id] || "").trim();
       const na = f.show_if && (r.data[f.show_if] || "") !== f.show_if_value;
@@ -346,8 +336,7 @@ function renderTable(){
     });
     t += `</tr>`;
   });
-  const span = DATA.fields.length + 2 + (DATA.show_month_col ? 1 : 0);
-  body.innerHTML = t || `<tr><td colspan="${span}" class="dim">कोई मेल नहीं मिला</td></tr>`;
+  body.innerHTML = t || `<tr><td colspan="${DATA.fields.length+2}" class="dim">कोई मेल नहीं मिला</td></tr>`;
 }
 
 function copyLink(){

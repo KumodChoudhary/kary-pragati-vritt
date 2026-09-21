@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>जमा विवरण — {{ title }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="form-page">
+  <div class="card preview-card">
+    <div class="preview-thanks">
+      <div class="tick">✅</div>
+      <h1>{{ msg }}</h1>
+      <p class="dim">प्राप्ति क्रमांक #{{ rid }} · {{ created.replace("T", "  ") }}</p>
+    </div>
+
+    <div class="preview-title">
+      <h2>{{ title }}</h2>
+      {% if org_name %}<p class="dim">{{ org_name }}{% if org_sub %} · {{ org_sub }}{% endif %}</p>{% endif %}
+    </div>
+
+    {% set cur = namespace(part="") %}
+    {% for sec in sections %}
+      {% if sec.part != cur.part %}
+        {% set cur.part = sec.part %}
+        <div class="part-banner">
+          <div class="part-name">📖 {{ sec.part }}</div>
+          {% if part_subtitles.get(sec.part) %}<div class="part-sub">{{ part_subtitles.get(sec.part) }}</div>{% endif %}
+        </div>
+      {% endif %}
+      <div class="pv-sec">
+        <div class="pv-sec-title">{{ sec.title }}</div>
+        <table class="pv-table">
+          {% for item in sec['items'] %}
+            {% for f in item.fields %}
+              {% if not (f.get('show_if') and data.get(f.show_if) != f.show_if_value) %}
+              <tr>
+                <td class="pv-q">{% if item.grp %}<b>{{ item.grp }}</b> — {% endif %}{{ f.label }}</td>
+                <td class="pv-a">{{ data.get(f.id, "") or "—" }}</td>
+              </tr>
+              {% endif %}
+            {% endfor %}
+          {% endfor %}
+        </table>
+      </div>
+    {% endfor %}
+
+    <div class="preview-actions no-print">
+      <button class="btn-primary" onclick="window.print()">🖨 प्रिंट करें</button>
+      <a href="{{ url_for('form_page') }}" class="btn-secondary">➕ नया उत्तर भरें</a>
+    </div>
+  </div>
+
+  <footer class="form-footer no-print">⚡ {{ site }} · यह प्रति आपके रिकॉर्ड हेतु है</footer>
+</body>
+</html>
