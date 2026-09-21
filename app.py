@@ -267,7 +267,7 @@ def index():
 
 @app.route("/form")
 def form_page():
-    cur_month, _ = current_month_year()
+    cur_month = get_month_label()
     return render_template(
         "form.html",
         title=get_form_title(), desc=FORM_DESC, instruction=get_instruction(),
