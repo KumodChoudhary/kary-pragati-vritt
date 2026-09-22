@@ -404,9 +404,12 @@ SECTIONS = [
                 "label": "प्रांत का नाम",
                 "fields": [
                     {"id": "p2_prov", "label": "प्रांत का नाम", "short": "प्रांत",
-                     "type": "text", "required": True,
-                     "placeholder": "प्रांत का नाम...",
-                     "full": True},
+                     "type": "select", "options": EXPECTED_PROVINCES + [OTHER_PROV_LABEL],
+                     "required": True, "full": True},
+                    {"id": "p2_prov_other", "label": "अपने प्रांत का नाम लिखें",
+                     "short": "अन्य प्रांत", "type": "text",
+                     "required": True, "placeholder": "प्रांत का नाम...",
+                     "full": True, "show_if": "p2_prov", "show_if_value": OTHER_PROV_LABEL},
                 ],
             },
             {
