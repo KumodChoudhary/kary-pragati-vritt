@@ -28,30 +28,30 @@ body {
 
 .form-hero {
   max-width: 720px; margin: 8px auto 16px; text-align: center;
-  background: linear-gradient(135deg, #7C2D12 0%, #C2410C 28%, #EA580C 55%, #F97316 78%, #FBBF24 100%);
-  border-radius: 22px; padding: 28px 22px 24px; color: #fff;
-  box-shadow: 0 10px 32px rgba(234,88,12,.4), inset 0 1px 0 rgba(255,255,255,.35);
-  border: 1px solid rgba(255,255,255,.25);
+  background: linear-gradient(135deg, #FFFBEB 0%, #FEF9C3 20%, #FEF08A 40%, #FDE047 60%, #FACC15 80%, #EAB308 100%);
+  border-radius: 22px; padding: 28px 22px 24px; color: #DC2626;
+  box-shadow: 0 10px 32px rgba(250,204,21,.5), inset 0 1px 0 rgba(255,255,255,.7);
+  border: 1.5px solid rgba(220,38,38,.35);
 }
 .hero-badge {
   display: inline-block; background: var(--blue); color: #fff;
   padding: 4px 14px; border-radius: 999px; font-size: 13px; margin-bottom: 10px;
 }
-.form-hero h1 { font-size: 28px; color: #fff; margin-bottom: 6px; text-shadow: 0 2px 10px rgba(0,0,0,.3); }
-.form-hero p { color: #FFF7ED; font-size: 14.5px; text-shadow: 0 1px 4px rgba(0,0,0,.2); }
+.form-hero h1 { font-size: 28px; color: #DC2626; margin-bottom: 6px; }
+.form-hero p { color: #B91C1C; font-size: 14.5px; }
 
 /* ---- संगठन ब्लॉक (लोगो + नाम + उप-शीर्षक) ---- */
 .org-block { display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 16px; margin-bottom: 14px; }
 .org-logo {
   width: 92px; height: 92px; object-fit: contain; border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #FFFFFF, #FFF7ED);
-  border: 3px solid rgba(255,255,255,.95); padding: 4px;
-  box-shadow: 0 6px 20px rgba(0,0,0,.3), 0 0 0 4px rgba(255,255,255,.25);
-  filter: saturate(1.35) contrast(1.08);
+  background: radial-gradient(circle at 35% 30%, #FFFFFF, #FFFBEB);
+  border: 3px solid #FFFFFF; padding: 4px;
+  box-shadow: 0 6px 20px rgba(220,38,38,.25), 0 0 0 4px rgba(239,68,68,.3);
+  filter: saturate(1.35) contrast(1.05);
 }
-.org-text { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
-.org-name { font-size: 24px; font-weight: 800; color: #fff; line-height: 1.3; text-shadow: 0 2px 8px rgba(0,0,0,.3); }
-.org-sub { font-size: 12.5px; font-weight: 600; color: #FFEDD5; letter-spacing: .2px; text-shadow: 0 1px 4px rgba(0,0,0,.25); }
+.org-text { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 3px; }
+.org-name { font-size: 24px; font-weight: 800; color: #DC2626; line-height: 1.3; }
+.org-sub { font-size: 12.5px; font-weight: 600; color: #B91C1C; letter-spacing: .2px; }
 @media (max-width: 480px) {
   .org-name { font-size: 19px; }
   .org-logo { width: 72px; height: 72px; }
@@ -61,8 +61,8 @@ body {
 
 .instruction-banner {
   max-width: 720px; margin: 0 auto 16px; padding: 12px 18px;
-  background: #FEF3C7; border: 1.5px solid #F59E0B; border-radius: 12px;
-  color: #92400E; font-weight: 600; font-size: 14.5px; text-align: center;
+  background: #FEF9C3; border: 1.5px solid #EF4444; border-radius: 12px;
+  color: #B91C1C; font-weight: 600; font-size: 14.5px; text-align: center;
 }
 
 .form-alert { max-width: 720px; margin: 0 auto 12px; }
@@ -299,14 +299,14 @@ tbody tr:hover { background: #F8FAFC; }
 
 /* ============ प्रथम / द्वितीय भाग — बैनर ============ */
 .part-banner {
-  background: linear-gradient(90deg, #9A3412, #EA580C 55%, #F97316);
-  color: #fff; border-radius: 14px; padding: 14px 18px; margin: 6px 0 18px;
-  text-align: center; box-shadow: 0 4px 14px rgba(234,88,12,.4),
-  inset 0 1px 0 rgba(255,255,255,.3);
-  border: 1px solid rgba(255,255,255,.2);
+  background: linear-gradient(90deg, #FFFBEB, #FEF9C3 20%, #FEF08A 45%, #FDE047 70%, #FACC15 100%);
+  color: #DC2626; border-radius: 14px; padding: 14px 18px; margin: 6px 0 18px;
+  text-align: center; box-shadow: 0 4px 14px rgba(250,204,21,.55),
+  inset 0 1px 0 rgba(255,255,255,.7);
+  border: 1px solid rgba(220,38,38,.35);
 }
 .part-name { font-size: 19px; font-weight: 800; letter-spacing: .3px; }
-.part-sub { font-size: 13.5px; opacity: .93; margin-top: 2px; }
+.part-sub { font-size: 13.5px; font-weight: 600; color: #B91C1C; margin-top: 2px; }
 
 /* स्वतः-योग टैग + readonly box */
 .auto-tag {
@@ -341,7 +341,7 @@ input[readonly] { background: #F1F5F9; color: #334155; font-weight: 700; }
 .preview-thanks { text-align: center; margin-bottom: 10px; }
 .preview-thanks h1 { font-size: 20px; color: var(--blue-d); margin: 6px 0 4px; }
 .preview-title { text-align: center; margin: 12px 0 20px; }
-.preview-title h2 { color: #C2410C; font-size: 21px; }
+.preview-title h2 { color: #DC2626; font-size: 21px; }
 .pv-sec { margin-bottom: 20px; }
 .pv-sec-title {
   background: #EFF6FF; color: var(--blue-d); font-weight: 700; font-size: 14.5px;

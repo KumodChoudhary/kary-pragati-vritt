@@ -23,8 +23,8 @@
         <span id="lastUpdate" class="last-update">—</span>
         <a href="{{ url_for('form_page') }}" class="btn-ghost" target="_blank">👁 फॉर्म देखें</a>
         <a href="{{ export_url }}" class="btn-green">⬇ Excel</a>
-        <a href="{{ pdf1_url }}" class="btn-red">📄 PDF-1</a>
-        <a href="{{ pdf2_url }}" class="btn-red">📄 PDF-2</a>
+        <a href="{{ pdf1_url }}" class="btn-red" title="प्रथम भाग की PDF">📄 कार्य-वृत्त</a>
+        <a href="{{ pdf2_url }}" class="btn-red" title="द्वितीय भाग की PDF">📄 प्रतिभा विकास केन्द्र</a>
         <form method="POST" action="{{ url_for('admin_clear') }}" class="inline-form"
               onsubmit="return confirm('क्या आप सारा डेटा साफ़ करना चाहते हैं? यह क्रिया वापस नहीं हो सकती।');">
           <button class="btn-ghost btn-danger">🗑 साफ़ करें</button>
@@ -286,7 +286,7 @@ function renderCharts(){
   (DATA.parts || []).forEach(p => {
     const keys = grpOrder.filter(k => grpMap[k].part === p.name);
     if (!keys.length) return;
-    html += `<div class="chart-part-title">📖 ${esc(p.name)}${p.subtitle ? " — " + esc(p.subtitle) : ""}</div>`;
+    html += `<div class="chart-part-title">${esc(p.name)}${p.subtitle ? " — " + esc(p.subtitle) : ""}</div>`;
     keys.forEach(k => {
       const grp = grpMap[k];
       const g = k.split("||")[1];

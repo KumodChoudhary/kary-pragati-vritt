@@ -24,7 +24,7 @@
       {% if sec.part != cur.part %}
         {% set cur.part = sec.part %}
         <div class="part-banner">
-          <div class="part-name">📖 {{ sec.part }}</div>
+          <div class="part-name">{{ sec.part }}</div>
           {% if part_subtitles.get(sec.part) %}<div class="part-sub">{{ part_subtitles.get(sec.part) }}</div>{% endif %}
         </div>
       {% endif %}

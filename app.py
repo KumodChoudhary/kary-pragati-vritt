@@ -267,7 +267,7 @@ def index():
 
 @app.route("/form")
 def form_page():
-    cur_month = get_month_label()
+    cur_month = get_month_label()  # REPORTING_MONTHS से exact match हेतु "माह, वर्ष"
     return render_template(
         "form.html",
         title=get_form_title(), desc=FORM_DESC, instruction=get_instruction(),
@@ -641,25 +641,44 @@ def admin_export():
 
 
 # ---------------------------------------------------------------- PDF एक्सपोर्ट (भाग-वार, सिर्फ table)
-def _pdf_groups(part):
-    """भाग के फ़ील्ड → (section, grp) क्रम में समूह। परिचय (grp='') एक table में।"""
-    groups, seen = [], {}
-    for f in FLAT:
-        if f["part"] != part:
+PDF_MAX_FIELDS = 10  # एक PDF-table में अधिकतम प्रश्न-column (क्र.+प्रांत अलग)
+
+
+def _pdf_tables(part):
+    """भाग → [(शीर्षक, [fields], is_intro)] : एक ही खंड के प्रश्न एक table में;
+    8 से ज़्यादा हों तो उसी खंड की 2-3 table (compact — कम पेज)।"""
+    tables = []
+    for sec in SECTIONS:
+        if sec.get("part") != part:
             continue
-        key = (f["section"], f["grp"])
-        if key not in seen:
-            seen[key] = {"section": f["section"], "grp": f["grp"],
-                         "label": f["item_label"], "fields": []}
-            groups.append(seen[key])
-        if f["grp"] == "":
-            seen[key]["label"] = f["section"]  # परिचय table का शीर्षक
-        seen[key]["fields"].append(f)
-    return groups
+        chunk, chunk_grps = [], []
+
+        def flush():
+            if not chunk:
+                return
+            if chunk_grps:
+                g1, g2 = chunk_grps[0], chunk_grps[-1]
+                rng = g1 if g1 == g2 else f"{g1}–{g2}"
+                title = f"{sec['title']}  ({rng})"
+            else:
+                title = sec["title"]
+            tables.append((title, list(chunk), not chunk_grps))
+
+        for item in sec.get("items", []):
+            fs = item.get("fields", [])
+            if chunk and len(chunk) + len(fs) > PDF_MAX_FIELDS:
+                flush()
+                chunk, chunk_grps = [], []
+            chunk.extend(fs)
+            if item.get("grp"):
+                chunk_grps.append(item["grp"])
+        flush()
+    return tables
 
 
 def build_pdf_bytes(part):
-    """एक भाग की PDF — हर उप-खंड की table (पहला column: प्रांत)।"""
+    """एक भाग की PDF — खंड-वार compact table (पहला column: प्रांत),
+    हर table की आखिरी line में संख्यात्मक columns का कुल।"""
     reg = os.path.join(FONTS_DIR, "NotoSansDevanagari-Regular.ttf")
     bold = os.path.join(FONTS_DIR, "NotoSansDevanagari-Bold.ttf")
     if not (os.path.exists(reg) and os.path.exists(bold)):
@@ -668,8 +687,8 @@ def build_pdf_bytes(part):
     s = build_summary()
 
     pdf = FPDF(orientation="L", format="A4")
-    pdf.set_auto_page_break(True, margin=14)
-    pdf.set_margins(10, 12, 10)
+    pdf.set_auto_page_break(True, margin=10)
+    pdf.set_margins(10, 10, 10)
     pdf.add_font("Noto", "", reg)
     pdf.add_font("Noto", "B", bold)
     try:
@@ -694,29 +713,26 @@ def build_pdf_bytes(part):
     usable = pdf.w - pdf.l_margin - pdf.r_margin
     head_style = FontFace(emphasis="BOLD", color=(255, 255, 255), fill_color=(29, 78, 216))
 
-    for g in _pdf_groups(part):
-        is_intro = (g["grp"] == "")
-        title = g["label"] if is_intro else f"{g['grp']} · {g['label']}"
-        pdf.set_font("Noto", "B", 11)
-        pdf.cell(0, 8, title, new_x="LMARGIN", new_y="NEXT")
+    for title, cols, is_intro in _pdf_tables(part):
+        # जगह कम हो तो नया पेज (शीर्षक + हेडर अनाथ न रहें)
+        if pdf.will_page_break(30):
+            pdf.add_page()
+        pdf.set_font("Noto", "B", 10)
+        pdf.cell(0, 6.5, title, new_x="LMARGIN", new_y="NEXT")
 
-        cols = g["fields"]
-        # प्रथम भाग की परिचय-table में प्रांत खुद है; बाकी सब में प्रांत column जोड़ो
-        has_own_prov = any(f["id"] == "p1_prov" for f in cols)
-        if is_intro and has_own_prov:
-            headers = ["क्र."] + [(f["short"] or f["label"]) for f in cols]
-            widths = [10] + [max(30, (usable - 10) / max(len(cols), 1))] * len(cols)
-        else:
+        # परिचय-table में प्रांत खुद है तो अलग column नहीं; बाकी सब में प्रांत column जोड़ो
+        has_own_prov = any(f["id"] in ("p1_prov", "p2_prov") for f in cols)
+        with_prov = not (is_intro and has_own_prov)
+        if with_prov:
             headers = ["क्र.", "प्रांत"] + [(f["short"] or f["label"]) for f in cols]
-            rest = (usable - 10 - 34) / max(len(cols), 1)
-            widths = [10, 34] + [max(22, rest)] * len(cols)
-        # चौड़ाई को पेज में समायोजित करो
-        scale = usable / sum(widths)
-        widths = [w * scale for w in widths]
+            widths = [9, 30] + [(usable - 39) / max(len(cols), 1)] * len(cols)
+        else:
+            headers = ["क्र."] + [(f["short"] or f["label"]) for f in cols]
+            widths = [9] + [(usable - 9) / max(len(cols), 1)] * len(cols)
 
-        pdf.set_font("Noto", "", 8.5)
+        pdf.set_font("Noto", "", 7)
         with pdf.table(col_widths=tuple(widths), text_align="LEFT",
-                       line_height=5.2, width=usable,
+                       line_height=4.0, width=usable,
                        headings_style=head_style, repeat_headings=1) as table:
             hdr = table.row()
             for h in headers:
@@ -724,10 +740,10 @@ def build_pdf_bytes(part):
             for i, r in enumerate(s["rows"], start=1):
                 row = table.row()
                 row.cell(str(i), align="CENTER")
-                if not (is_intro and has_own_prov):
+                if with_prov:
                     row.cell(display_prov(r["data"]) or "—")
                 for f in cols:
-                    if is_intro and f["id"] == "p1_prov":
+                    if is_intro and f["id"] in ("p1_prov", "p2_prov"):
                         row.cell(r["data"].get(f["id"], "") or "—")
                         continue
                     if f.get("show_if") and r["data"].get(f["show_if"]) != f.get("show_if_value"):
@@ -737,7 +753,27 @@ def build_pdf_bytes(part):
                         row.cell("" if n is None else str(n), align="CENTER")
                     else:
                         row.cell(r["data"].get(f["id"], "") or "—")
-        pdf.ln(4)
+
+        # ---- आखिरी line: कुल (सभी उत्तरों का योग) — सिर्फ संख्यात्मक table में
+        if any(f["type"] == "number" for f in cols):
+            totals = []
+            for f in cols:
+                if f["type"] == "number":
+                    t = sum((to_num(r["data"].get(f["id"], "")) or 0) for r in s["rows"])
+                    totals.append(str(int(t)) if float(t).is_integer() else str(round(t, 2)))
+                else:
+                    totals.append("—")
+            pdf.set_font("Noto", "B", 7)
+            with pdf.table(col_widths=tuple(widths), text_align="LEFT",
+                           line_height=4.2, width=usable,
+                           first_row_as_headings=False) as table:
+                row = table.row()
+                row.cell("कुल", align="CENTER")
+                if with_prov:
+                    row.cell(f"{len(s['rows'])} उत्तर", align="CENTER")
+                for f, t in zip(cols, totals):
+                    row.cell(t, align="CENTER" if f["type"] == "number" else "LEFT")
+        pdf.ln(2.5)
 
     return bytes(pdf.output())
 
