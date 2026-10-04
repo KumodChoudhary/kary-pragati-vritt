@@ -49,14 +49,32 @@ def _now_ist():
 
 
 def current_month_year():
-    """('सितंबर', 2026) जैसा — हर request पर ताज़ा।"""
+    """('सितंबर', 2026) जैसा — कैलेंडर माह, हर request पर ताज़ा।"""
     n = _now_ist()
     return HINDI_MONTHS[n.month - 1], n.year
 
 
+def reporting_period(now=None):
+    """रिपोर्टिंग नियम: अगले माह की 7 तारीख तक पुराना माह ही रिपोर्ट माह रहता है।
+
+    Returns: (report_month, report_year, deadline_day=7, deadline_month, deadline_year)
+    उदाहरण: 5 अक्टूबर → रिपोर्ट 'सितंबर, 2026', अंतिम तिथि '7 अक्टूबर, 2026'
+             8 अक्टूबर → रिपोर्ट 'अक्टूबर, 2026', अंतिम तिथि '7 नवंबर, 2026'
+    """
+    n = now or _now_ist()
+    if n.day <= 7:
+        # माह के पहले 7 दिन — अभी पिछले माह की रिपोर्टिंग चल रही है
+        rm, ry = (n.month - 1, n.year) if n.month > 1 else (12, n.year - 1)
+        return HINDI_MONTHS[rm - 1], ry, 7, HINDI_MONTHS[n.month - 1], n.year
+    else:
+        # 8 तारीख से — चालू माह की रिपोर्टिंग, अंतिम तिथि अगले माह की 7
+        nm, ny = (n.month + 1, n.year) if n.month < 12 else (1, n.year + 1)
+        return HINDI_MONTHS[n.month - 1], n.year, 7, HINDI_MONTHS[nm - 1], ny
+
+
 def get_month_label():
-    """'सितंबर, 2026' — टाइटल, Excel, PDF में यही दिखेगा।"""
-    m, y = current_month_year()
+    """'सितंबर, 2026' — रिपोर्ट माह; टाइटल, Excel, PDF में यही दिखेगा।"""
+    m, y, *_ = reporting_period()
     return f"{m}, {y}"
 
 
@@ -65,11 +83,9 @@ def get_form_title():
 
 
 def get_instruction():
-    """जमा करने की अंतिम तिथि = चालू माह का अंतिम दिन (अपने आप)।"""
-    n = _now_ist()
-    last_day = calendar.monthrange(n.year, n.month)[1]
-    m, y = HINDI_MONTHS[n.month - 1], n.year
-    return f"आप इस फॉर्मेट को भरकर {last_day} {m}, {y} तक भेजने का कष्ट करेंगे।"
+    """जमा करने की अंतिम तिथि = अगले माह की 7 तारीख (अपने आप)।"""
+    _, _, d, dm, dy = reporting_period()
+    return f"आप इस फॉर्मेट को भरकर {d} {dm}, {dy} तक भेजने का कष्ट करेंगे।"
 
 
 # ============ संगठन की जानकारी (हेडर में दिखती है) ============
