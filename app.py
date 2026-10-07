@@ -132,6 +132,11 @@ def display_prov(data):
     return prov
 
 
+def _norm_prov(s):
+    """मिलान हेतु नाम साफ़ करो — space/case का फर्क मिटाओ।"""
+    return (s or "").replace(" ", "").replace("\u3000", "").lower()
+
+
 # ---------------------------------------------------------------- डेटाबेस
 DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
 
@@ -249,6 +254,21 @@ def db_clear():
             db.execute("DELETE FROM responses")
 
 
+def db_delete(rid):
+    """एक entry हटाओ (गलत/duplicate entry सुधार हेतु)।"""
+    if DATABASE_URL:
+        conn = _pg()
+        try:
+            with conn:
+                with conn.cursor() as c:
+                    c.execute("DELETE FROM responses WHERE id = %s", (rid,))
+        finally:
+            conn.close()
+    else:
+        with get_db() as db:
+            db.execute("DELETE FROM responses WHERE id = ?", (rid,))
+
+
 db_init()
 
 
@@ -257,6 +277,18 @@ def parse_data(row):
         return json.loads(row["data"])
     except Exception:
         return {}
+
+
+def find_duplicate(prov, month):
+    """उसी प्रांत + उसी माह की पुरानी entry ढूंढो (मिले तो dict, वरना None)।"""
+    np, nm = _norm_prov(prov), (month or "").strip()
+    if not np or not nm:
+        return None
+    for r in db_all():  # नए पहले — पहली मिली = ताज़ा entry
+        d = parse_data(r)
+        if _norm_prov(display_prov(d)) == np and (d.get("p1_month") or "").strip() == nm:
+            return {"id": r["id"], "created_at": r["created_at"], "data": d}
+    return None
 
 
 # ---------------------------------------------------------------- सार्वजनिक फॉर्म
@@ -307,6 +339,16 @@ def submit():
     if not ok:
         flash("कृपया सभी ज़रूरी (*) प्रश्न भरें।", "error")
         return redirect(url_for("form_page"))
+
+    # एक प्रांत + एक माह = एक entry (duplicate रोको)
+    dup = find_duplicate(display_prov(payload), payload.get("p1_month", ""))
+    if dup:
+        return render_template(
+            "already_submitted.html", prov=display_prov(payload),
+            month=payload.get("p1_month", ""), rid=dup["id"],
+            created=dup["created_at"], site=SITE_TITLE,
+            org_name=ORG_NAME, org_sub=ORG_SUB, logo=LOGO_EXISTS,
+        )
 
     rid = db_insert(datetime.now().isoformat(timespec="seconds"),
                       json.dumps(payload, ensure_ascii=False))
@@ -393,6 +435,17 @@ def admin_clear():
     return redirect(url_for("admin"))
 
 
+@app.route("/admin/delete/<int:rid>", methods=["POST"])
+def admin_delete(rid):
+    if not is_admin():
+        abort(403)
+    db_delete(rid)
+    key = request.args.get("key")
+    if key:
+        return redirect(url_for("admin", key=key))
+    return redirect(url_for("admin"))
+
+
 # ---------------------------------------------------------------- एडमिन डैशबोर्ड
 @app.route("/admin")
 def admin():
@@ -445,16 +498,13 @@ def build_summary():
             field_sums[f["id"]] = None
 
     # ---------- उत्तर-सूची ट्रैकर: किस प्रांत ने भरा / नहीं भरा ----------
-    def _norm(s):
-        return (s or "").replace(" ", "").replace("\u3000", "").lower()
-
     filled = {}
     for r in rows:
         d = parse_data(r)
         prov = display_prov(d)
         if not prov:
             continue
-        k = _norm(prov)
+        k = _norm_prov(prov)
         if k in filled:
             continue
         filled[k] = {"name": prov, "at": r["created_at"],
@@ -462,7 +512,7 @@ def build_summary():
 
     tracker = {"expected": EXPECTED_PROVINCES, "status": [], "extra": []}
     for name in EXPECTED_PROVINCES:
-        k = _norm(name)
+        k = _norm_prov(name)
         st = filled.pop(k, None)
         tracker["status"].append({
             "name": name, "filled": bool(st),

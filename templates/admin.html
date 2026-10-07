@@ -95,6 +95,7 @@ const COLORS = ["#1D4ED8", "#059669", "#D97706", "#7C3AED", "#DC2626", "#0EA5E9"
 // कुकी-मुक्त कुंजी — URL से पढ़ो और हर अनुरोध में भेजो
 const ADMIN_KEY = new URLSearchParams(location.search).get('key') || '';
 const API_URL = "{{ url_for('admin_api_data') }}" + (ADMIN_KEY ? "?key=" + encodeURIComponent(ADMIN_KEY) : "");
+const DEL_BASE = "{{ url_for('admin_delete', rid=0) }}".replace(/0$/, '');
 
 // नाम-मोड: डिफ़ॉल्ट संक्षिप्त (localStorage में याद रहता है)
 let USE_SHORT = localStorage.getItem('kpv_labels') !== 'full';
@@ -313,7 +314,7 @@ function renderTable(){
 
   let h = `<tr><th class="th-idx">#</th><th class="th-time">समय</th>`;
   DATA.fields.forEach(f => h += `<th title="${esc(fTitle(f))}">${pTag(f)}${esc(fLabel(f))}</th>`);
-  h += `</tr>`;
+  h += `<th class="th-del">हटाएँ</th></tr>`;
   head.innerHTML = h;
 
   const rows = DATA.rows.filter(r => {
@@ -334,9 +335,11 @@ function renderTable(){
       t += na ? `<td class="dim" title="${esc(fTitle(f))}">लागू नहीं</td>`
               : `<td title="${esc(fTitle(f))}" class="${f.type === 'number' ? 'num-cell' : ''}">${v ? esc(v) : '<span class="dim">—</span>'}</td>`;
     });
+    const delUrl = DEL_BASE + r.id + (ADMIN_KEY ? '?key=' + encodeURIComponent(ADMIN_KEY) : '');
+    t += `<td><form method="POST" action="${delUrl}" onsubmit="return confirm('प्राप्ति #${r.id} (${esc(provName(r))}) हटाएँ? यह वापस नहीं होगी।');"><button class="btn-del" title="यह entry हटाएँ">🗑</button></form></td>`;
     t += `</tr>`;
   });
-  body.innerHTML = t || `<tr><td colspan="${DATA.fields.length+2}" class="dim">कोई मेल नहीं मिला</td></tr>`;
+  body.innerHTML = t || `<tr><td colspan="${DATA.fields.length+3}" class="dim">कोई मेल नहीं मिला</td></tr>`;
 }
 
 function copyLink(){

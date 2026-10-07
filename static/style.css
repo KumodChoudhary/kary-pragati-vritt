@@ -360,3 +360,11 @@ input[readonly] { background: #F1F5F9; color: #334155; font-weight: 700; }
   .preview-card { box-shadow: none; border: none; max-width: 100%; margin: 0; }
   .part-banner { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+
+/* डैशबोर्ड table — per-row delete */
+.th-del { min-width: 56px; max-width: 56px; text-align: center; }
+.btn-del {
+  background: #FEF2F2; border: 1.5px solid #FCA5A5; border-radius: 8px;
+  cursor: pointer; font-size: 14px; padding: 3px 9px; font-family: inherit;
+}
+.btn-del:hover { background: #FEE2E2; border-color: #DC2626; }
