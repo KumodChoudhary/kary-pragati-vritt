@@ -62,14 +62,14 @@ def reporting_period(now=None):
              8 अक्टूबर → रिपोर्ट 'अक्टूबर, 2026', अंतिम तिथि '7 नवंबर, 2026'
     """
     n = now or _now_ist()
-    if n.day <= 7:
+    if n.day <= 15:
         # माह के पहले 7 दिन — अभी पिछले माह की रिपोर्टिंग चल रही है
         rm, ry = (n.month - 1, n.year) if n.month > 1 else (12, n.year - 1)
-        return HINDI_MONTHS[rm - 1], ry, 7, HINDI_MONTHS[n.month - 1], n.year
+        return HINDI_MONTHS[rm - 1], ry, 15, HINDI_MONTHS[n.month - 1], n.year
     else:
         # 8 तारीख से — चालू माह की रिपोर्टिंग, अंतिम तिथि अगले माह की 7
         nm, ny = (n.month + 1, n.year) if n.month < 12 else (1, n.year + 1)
-        return HINDI_MONTHS[n.month - 1], n.year, 7, HINDI_MONTHS[nm - 1], ny
+        return HINDI_MONTHS[n.month - 1], n.year, 15, HINDI_MONTHS[nm - 1], ny
 
 
 def get_month_label():
